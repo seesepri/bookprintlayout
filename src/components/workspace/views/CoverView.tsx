@@ -1,0 +1,200 @@
+import { useMemo, useState } from "react";
+import { UploadCloud, ImageIcon, DownloadCloud, Loader2 } from "lucide-react";
+import { useProject } from "../../../state/ProjectContext";
+import { Checkbox } from "../panels/PanelShell";
+import { buildCoverPdf, fileToBytes, bytesToBlob } from "../../../lib/pdfEngine";
+import toast from "react-hot-toast";
+
+export default function CoverView() {
+  const { state, dispatch, activeBookSize } = useProject();
+  const [busy, setBusy] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const totalCoverWidth = useMemo(
+    () => activeBookSize.width * 2 + state.cover.spineWidthMm,
+    [activeBookSize.width, state.cover.spineWidthMm]
+  );
+  const totalCoverHeight = activeBookSize.height;
+  const previewAspectRatio = `${totalCoverWidth + state.cover.bleedMm * 2} / ${totalCoverHeight + state.cover.bleedMm * 2}`;
+
+  const setFile = (key: "frontFile" | "backFile" | "spineFile" | "combinedFile") => (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0] ?? null;
+    dispatch({ type: "SET_COVER", cover: { [key]: file } as any });
+  };
+
+  const generateCover = async () => {
+    setBusy(true);
+    try {
+      const front = state.cover.frontFile ? await fileToBytes(state.cover.frontFile) : null;
+      const back = state.cover.backFile ? await fileToBytes(state.cover.backFile) : null;
+      const spine = state.cover.spineFile ? await fileToBytes(state.cover.spineFile) : null;
+
+      if (!front && !back && !spine) {
+        toast.error("Unggah minimal salah satu bagian cover (front/back/spine).");
+        setBusy(false);
+        return;
+      }
+
+      const bytes = await buildCoverPdf({
+        bookSize: activeBookSize,
+        spineWidthMm: state.cover.spineWidthMm,
+        bleedMm: state.cover.bleedMm,
+        frontBytes: front,
+        backBytes: back,
+        spineBytes: spine,
+        includeCropMarks: state.cover.includeCropMarks,
+      });
+      dispatch({ type: "SET_GENERATED_COVER", bytes });
+      const blob = bytesToBlob(bytes);
+      setPreviewUrl(URL.createObjectURL(blob));
+      toast.success("Cover layout berhasil dibuat!");
+    } catch (e) {
+      console.error(e);
+      toast.error("Gagal membuat cover.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const download = () => {
+    if (!state.generatedCover) return;
+    const blob = bytesToBlob(state.generatedCover);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${state.meta.fileName.replace(/\.pdf$/i, "") || "cover"}_cover.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+      <h2 className="text-lg font-bold text-slate-900 dark:text-white">Cover Generator</h2>
+      <p className="mb-6 text-sm text-slate-500">
+        Buat layout cover lengkap: Back Cover | Spine | Front Cover, dengan bleed otomatis.
+      </p>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <UploadBox label="Back Cover" onChange={setFile("backFile")} file={state.cover.backFile} />
+            <UploadBox label="Spine" onChange={setFile("spineFile")} file={state.cover.spineFile} />
+            <UploadBox label="Front Cover" onChange={setFile("frontFile")} file={state.cover.frontFile} />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">Pengaturan Cover</h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Field label="Book Width (mm)">
+                <input readOnly value={activeBookSize.width} className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800" />
+              </Field>
+              <Field label="Book Height (mm)">
+                <input readOnly value={activeBookSize.height} className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800" />
+              </Field>
+              <Field label="Spine Width (mm)">
+                <input
+                  type="number"
+                  min={0}
+                  value={state.cover.spineWidthMm}
+                  onChange={(e) => dispatch({ type: "SET_COVER", cover: { spineWidthMm: Number(e.target.value) } })}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+              </Field>
+              <Field label="Bleed (mm)">
+                <input
+                  type="number"
+                  min={0}
+                  value={state.cover.bleedMm}
+                  onChange={(e) => dispatch({ type: "SET_COVER", cover: { bleedMm: Number(e.target.value) } })}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+              </Field>
+            </div>
+            <div className="mt-4">
+              <Checkbox
+                label="Include Crop Marks"
+                checked={state.cover.includeCropMarks}
+                onChange={(v) => dispatch({ type: "SET_COVER", cover: { includeCropMarks: v } })}
+              />
+            </div>
+            <div className="mt-4 rounded-lg bg-indigo-50 p-3 text-sm text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+              Total Cover Width = {activeBookSize.width} + {state.cover.spineWidthMm} + {activeBookSize.width} ={" "}
+              <b>{totalCoverWidth} mm</b> (+ bleed {state.cover.bleedMm}mm setiap sisi)
+            </div>
+          </div>
+
+          <button
+            onClick={generateCover}
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-indigo-700 disabled:opacity-60"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+            Generate Cover Layout
+          </button>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          {previewUrl ? (
+            <>
+              <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">PDF Preview</h3>
+              <div
+                className="mx-auto w-full max-w-[760px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
+                style={{ aspectRatio: previewAspectRatio, maxHeight: "min(58vh, 520px)" }}
+              >
+                <iframe
+                  src={previewUrl}
+                  title="Generated Cover PDF Preview"
+                  className="block h-full w-full border-0"
+                />
+              </div>
+              <button
+                onClick={download}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-700"
+              >
+                <DownloadCloud className="h-4 w-4" /> Download Cover PDF
+              </button>
+            </>
+          ) : (
+            <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-slate-700 dark:bg-slate-800">
+              <div>
+                <ImageIcon className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">PDF preview akan muncul setelah Generate Cover</p>
+                <p className="mt-1 text-xs text-slate-400">Tidak ada preview layout sebelum PDF dibuat.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UploadBox({
+  label,
+  file,
+  onChange,
+}: {
+  label: string;
+  file?: File | null;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-5 text-center transition hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-800/40">
+      <UploadCloud className="h-5 w-5 text-slate-400" />
+      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{label}</span>
+      <span className="max-w-full truncate text-[10px] text-slate-400">{file ? file.name : "PDF file"}</span>
+      <input type="file" accept="application/pdf" className="hidden" onChange={onChange} />
+    </label>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      {children}
+    </label>
+  );
+}

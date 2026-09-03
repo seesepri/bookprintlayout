@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+html, body, #root {
+  height: 100%;
+}
+
+
+
+/* Responsive workspace safeguards */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; max-width: 100%; overflow: hidden; }
+body { overscroll-behavior: none; }
+button, input, select { max-width: 100%; }
+@media (max-width: 767px) {
+  #root { min-width: 0; }
+  input, select, button { min-height: 40px; }
+  .touch-target { min-height: 44px; min-width: 44px; }
+}
+@media (min-width: 768px) {
+  input, select, button { min-height: 0; }
+}
+
+
+/* Professional responsive workspace layout */
+.workspace-settings-layout {
+  min-height: 0;
+}
+
+.workspace-sidebar {
+  z-index: 30;
+}
+
+.workspace-nav-item {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .workspace-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 64px;
+    flex-direction: row;
+    border-right: 0;
+    border-top: 1px solid rgb(226 232 240);
+  }
+
+  .workspace-brand {
+    width: 64px;
+    flex: 0 0 64px;
+    border-bottom: 0;
+    border-right: 1px solid rgb(226 232 240);
+    padding: 8px;
+  }
+
+  .workspace-brand img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .workspace-nav {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    padding: 7px 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .workspace-nav::-webkit-scrollbar { display: none; }
+
+  .workspace-nav-item {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    justify-content: center;
+    padding: 0;
+    border-radius: 12px;
+  }
+
+  main {
+    padding-bottom: 64px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .workspace-settings-layout {
+    overflow: auto;
+  }
+
+  .workspace-settings-layout > * {
+    min-height: 0;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .workspace-sidebar { width: 68px; }
+  .workspace-brand { padding-inline: 12px; }
+  .workspace-nav-item { justify-content: center; padding-inline: 0; }
+  .workspace-nav-item span { display: none; }
+}
+
+@media (min-width: 1200px) {
+  .workspace-sidebar { width: 240px; }
+}
+
+/* Prevent layout collapse in nested flex/grid regions. */
+.workspace-settings-layout,
+.workspace-settings-layout > *,
+.workspace-settings-layout main {
+  min-width: 0;
+}
+
+/* Keep controls usable without forcing horizontal overflow. */
+input, select, textarea {
+  min-width: 0;
+}
+
+
+.settings-panel {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.preview-toolbar {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 479px) {
+  .preview-toolbar {
+    gap: 4px;
+  }
+
+  .preview-toolbar > * {
+    max-width: 100%;
+  }
+
+  .preview-toolbar .ml-auto {
+    margin-left: 0;
+  }
+
+  .preview-toolbar button {
+    min-height: 38px;
+  }
+}
+
+@media (min-width: 768px) {
+  .settings-panel {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .settings-panel {
+    width: 100%;
+    max-height: 46vh;
+    border-left: 0;
+  }
+
+  .settings-panel > div {
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+}

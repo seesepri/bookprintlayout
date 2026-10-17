@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import { useRef } from "react";
 import {
   BookOpen,
   BookCopy,
@@ -60,7 +60,6 @@ const FEATURES = [
   },
 ];
 
-
 export default function Landing() {
   const { goWorkspace, setView } = useProjectActions();
   const { dispatch } = useProject();
@@ -75,13 +74,15 @@ export default function Landing() {
     }
     const toastId = toast.loading("Menganalisis PDF...");
     try {
-      await handleFileUpload(file, dispatch);
+      await handleFileUpload(file, dispatch, (done, total) => {
+        toast.loading(`Menganalisis PDF — halaman ${done}/${total}`, { id: toastId });
+      });
       toast.success("PDF berhasil dianalisis!", { id: toastId });
       goWorkspace();
       setView("pages");
     } catch (e) {
       console.error(e);
-      toast.error("Gagal membaca file PDF.", { id: toastId });
+      toast.error(e instanceof Error ? e.message : "Gagal membaca file PDF.", { id: toastId });
     }
   };
 
@@ -91,10 +92,10 @@ export default function Landing() {
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <img 
-              src="/logo.png" 
-              alt="Logo" 
-              className="h-9 w-9 rounded-xl object-cover shadow-sm" 
+            <img
+              src="/logo.png"
+              alt="Logo BookPrint Layout"
+              className="h-9 w-9 rounded-xl object-cover shadow-sm"
             />
             <span className="text-lg font-bold tracking-tight">
               BookPrint <span className="text-indigo-600">Layout</span>
@@ -158,8 +159,41 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Features */}
+      <section className="border-b border-slate-200 bg-slate-50/60">
+        <div className="mx-auto max-w-7xl px-6 py-16 lg:py-20">
+          <div className="mb-10 flex items-center gap-2 text-indigo-600">
+            <Sparkles className="h-4 w-4" />
+            <span className="text-xs font-bold uppercase tracking-widest">Kemampuan Utama</span>
+          </div>
+          <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+            Dari PDF mentah sampai lembar siap cetak
+          </h2>
+          <p className="mb-10 max-w-2xl text-sm text-slate-500">
+            Semua diproses di browser Anda — file tidak pernah diunggah ke server mana pun.
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.map((f) => {
+              const Icon = f.icon;
+              return (
+                <article
+                  key={f.title}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">{f.title}</h3>
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{f.desc}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
-      <section className="mx-auto max-w-7xl px-6 pb-20">
+      <section className="mx-auto max-w-7xl px-6 py-20">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-8 py-16 text-center shadow-2xl">
           <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-indigo-600/30 blur-3xl" />
           <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-violet-600/30 blur-3xl" />

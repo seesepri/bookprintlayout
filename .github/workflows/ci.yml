@@ -9,7 +9,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # pdfjs-dist@6 declares engines >=22.13; keep CI on a line it supports.
       - uses: actions/setup-node@v4

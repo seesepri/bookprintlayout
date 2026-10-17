@@ -20,11 +20,13 @@ export type Orientation = "portrait" | "landscape" | "auto";
 export type BindingDirection = "left" | "right";
 export type ViewMode = "spread" | "grid";
 export type ExportFormat =
+  /** Full output: marks, bleed, both sides. */
   | "print-ready"
+  /** Small approval file: no marks, artwork fitted to trim instead of bleed. */
   | "preview"
+  /** One PDF page per signature, separated by labelled divider pages. */
   | "per-signature"
 ;
-export type ExportQuality = "standard" | "high" | "print";
 
 export interface SizeMM {
   width: number;
@@ -51,7 +53,6 @@ export interface CoverSettings {
   frontFile?: File | null;
   backFile?: File | null;
   spineFile?: File | null;
-  combinedFile?: File | null;
   spineWidthMm: number;
   bleedMm: number;
   includeCropMarks: boolean;
@@ -59,12 +60,10 @@ export interface CoverSettings {
 
 export interface ExportSettings {
   format: ExportFormat;
-  quality: ExportQuality;
   includeCropMarks: boolean;
   includeBleed: boolean;
   includeRegistration: boolean;
   compress: boolean;
-  embedFonts: boolean;
 }
 
 export interface MarksSettings {
@@ -73,6 +72,7 @@ export interface MarksSettings {
   showSafeArea: boolean;
   showFoldMarks: boolean;
   showCenterLine: boolean;
+  showRegistrationMarks: boolean;
 }
 
 export interface ProjectFileMeta {

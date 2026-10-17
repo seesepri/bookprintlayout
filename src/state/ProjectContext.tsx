@@ -17,7 +17,7 @@ import {
 } from "../types";
 import { BOOK_SIZE_PRESETS, PAPER_SIZE_PRESETS } from "../lib/paperSizes";
 
-interface ProjectState {
+export interface ProjectState {
   route: "landing" | "workspace";
   activeView: ViewKey;
   sourceBytes: Uint8Array | null;
@@ -51,7 +51,7 @@ interface ProjectState {
   isGenerating: boolean;
 }
 
-type Action =
+export type Action =
   | { type: "GO_WORKSPACE" }
   | { type: "GO_LANDING" }
   | { type: "SET_VIEW"; view: ViewKey }
@@ -81,7 +81,7 @@ type Action =
   | { type: "UNDO" }
   | { type: "__RESTORE__"; state: ProjectState };
 
-const initialState: ProjectState = {
+export const initialState: ProjectState = {
   route: "landing",
   activeView: "pages",
   sourceBytes: null,
@@ -113,18 +113,17 @@ const initialState: ProjectState = {
     showSafeArea: false,
     showFoldMarks: true,
     showCenterLine: false,
+    showRegistrationMarks: false,
   },
 
   creep: { paperThicknessMm: 0.1, mode: "auto", manualAmountMm: 0.3 },
   cover: { spineWidthMm: 10, bleedMm: 3, includeCropMarks: true },
   exportSettings: {
     format: "print-ready",
-    quality: "print",
     includeCropMarks: true,
     includeBleed: true,
     includeRegistration: true,
-    compress: false,
-    embedFonts: true,
+    compress: true,
   },
 
   viewMode: "spread",
@@ -272,9 +271,3 @@ export function useProjectActions() {
     [dispatch]
   );
 }
-
-export const useProjectDispatch = () => useProject().dispatch;
-export const useProjectSelector = <T,>(selector: (s: ProjectState) => T) => {
-  const { state } = useProject();
-  return useCallback(selector, [selector])(state);
-};

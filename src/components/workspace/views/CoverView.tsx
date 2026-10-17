@@ -1,14 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { UploadCloud, ImageIcon, DownloadCloud, Loader2 } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
 import { Checkbox } from "../panels/PanelShell";
 import { buildCoverPdf, fileToBytes, bytesToBlob } from "../../../lib/pdfEngine";
+import { readNumberInput } from "../../../lib/paperSizes";
 import toast from "react-hot-toast";
 
 export default function CoverView() {
   const { state, dispatch, activeBookSize } = useProject();
   const [busy, setBusy] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Each Generate click made a new object URL that nothing ever released.
+  useEffect(() => {
+    if (!previewUrl) return;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   const totalCoverWidth = useMemo(
     () => activeBookSize.width * 2 + state.cover.spineWidthMm,
@@ -17,7 +24,7 @@ export default function CoverView() {
   const totalCoverHeight = activeBookSize.height;
   const previewAspectRatio = `${totalCoverWidth + state.cover.bleedMm * 2} / ${totalCoverHeight + state.cover.bleedMm * 2}`;
 
-  const setFile = (key: "frontFile" | "backFile" | "spineFile" | "combinedFile") => (
+  const setFile = (key: "frontFile" | "backFile" | "spineFile") => (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0] ?? null;
@@ -98,7 +105,7 @@ export default function CoverView() {
                   type="number"
                   min={0}
                   value={state.cover.spineWidthMm}
-                  onChange={(e) => dispatch({ type: "SET_COVER", cover: { spineWidthMm: Number(e.target.value) } })}
+                  onChange={(e) => dispatch({ type: "SET_COVER", cover: { spineWidthMm: readNumberInput(e.target.value, { fallback: state.cover.spineWidthMm, min: 0, max: 200 }) } })}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 />
               </Field>

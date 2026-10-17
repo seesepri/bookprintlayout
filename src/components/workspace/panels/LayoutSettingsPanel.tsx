@@ -1,7 +1,8 @@
 import { useProject } from "../../../state/ProjectContext";
-import { BindingType } from "../../../types";
+import { BindingType, Orientation } from "../../../types";
 import { PanelSection, Field, Select, NumberInput } from "./PanelShell";
 import { blankPagesNeeded, computeSignatureRanges, padToMultiple } from "../../../lib/imposition";
+import { readNumberInput } from "../../../lib/paperSizes";
 import { Info } from "lucide-react";
 
 const BINDINGS: { key: BindingType; label: string; desc: string }[] = [
@@ -16,7 +17,9 @@ const SIGNATURE_OPTIONS = [4, 8, 16, 24, 32];
 export default function LayoutSettingsPanel() {
   const { state, dispatch } = useProject();
   const totalRaw = state.pages.length;
-  const neededMultiple = state.binding === "perfect-binding" ? 2 : 4;
+  // Every binding fills 4 pages per physical sheet (perfect binding via duplex,
+  // the others via folding), so the padding target is always a multiple of 4.
+  const neededMultiple = 4;
   const blanks = blankPagesNeeded(totalRaw, neededMultiple);
   const padded = padToMultiple(totalRaw, neededMultiple);
 
@@ -66,7 +69,7 @@ export default function LayoutSettingsPanel() {
               min={4}
               step={4}
               value={state.signatureSize}
-              onChange={(e) => dispatch({ type: "SET_SIGNATURE_SIZE", size: Number(e.target.value) || 4 })}
+              onChange={(e) => dispatch({ type: "SET_SIGNATURE_SIZE", size: readNumberInput(e.target.value, { fallback: 4, min: 4, max: 200 }) })}
             />
           </Field>
         </PanelSection>
@@ -106,7 +109,7 @@ export default function LayoutSettingsPanel() {
       <PanelSection title="Paper Orientation">
         <Select
           value={state.orientation}
-          onChange={(e) => dispatch({ type: "SET_ORIENTATION", orientation: e.target.value as any })}
+          onChange={(e) => dispatch({ type: "SET_ORIENTATION", orientation: e.target.value as Orientation })}
         >
           <option value="auto">Auto</option>
           <option value="portrait">Portrait</option>

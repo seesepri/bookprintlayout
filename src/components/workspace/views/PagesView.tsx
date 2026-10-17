@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   RotateCw,
   Trash2,
@@ -30,7 +30,6 @@ export default function PagesView() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<number | null>(null);
   const [replaceValue, setReplaceValue] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updatePages = (pages: PageInfo[]) => dispatch({ type: "SET_PAGES", pages });
 
@@ -126,6 +125,9 @@ export default function PagesView() {
             onDragStart={() => setDragIndex(idx)}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => onDrop(idx)}
+            // Without this, a cancelled drag leaves `dragIndex` set and the next
+            // drop reorders from the stale source.
+            onDragEnd={() => setDragIndex(null)}
             className="group relative rounded-xl border border-slate-200 bg-white p-2 shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
           >
             <div className="mb-1.5 flex items-center justify-between">
@@ -142,6 +144,7 @@ export default function PagesView() {
               {p.thumbnail ? (
                 <img
                   src={p.thumbnail}
+                  alt={`Halaman ${idx + 1}${p.isBlank ? " (kosong)" : ""}`}
                   className="h-full w-full object-contain"
                   style={{ transform: `rotate(${p.rotation}deg)` }}
                   draggable={false}
@@ -201,7 +204,6 @@ export default function PagesView() {
           </div>
         ))}
       </div>
-      <input ref={fileInputRef} type="file" className="hidden" />
     </div>
   );
 }

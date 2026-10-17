@@ -1,8 +1,28 @@
-import { PDFDocument, PDFPage, PDFEmbeddedPage, rgb, degrees } from "pdf-lib";
-import { BindingDirection, BindingType, CreepSettings, MarksSettings, PageInfo, SizeMM } from "../types";
+import {
+  PDFDict,
+  PDFDocument,
+  PDFEmbeddedPage,
+  PDFFont,
+  PDFName,
+  PDFPage,
+  StandardFonts,
+  degrees,
+  rgb,
+} from "pdf-lib";
+import {
+  BindingDirection,
+  BindingType,
+  CreepSettings,
+  ExportFormat,
+  MarksSettings,
+  PageInfo,
+  SheetSide,
+  SizeMM,
+} from "../types";
+import type { SignatureRange } from "../types";
 import { mmToPt } from "./paperSizes";
-import { planImposition } from "./imposition";
-import { buildSheetGeometry, PagePlacement } from "./geometry";
+import { ImpositionPlan, planImposition } from "./imposition";
+import { buildSheetGeometry, PagePlacement, SheetGeometry } from "./geometry";
 
 export interface BuildImpositionParams {
   sourceBytes: Uint8Array;
@@ -16,18 +36,43 @@ export interface BuildImpositionParams {
   safeAreaMm: number;
   gutterMm: number;
   marks: MarksSettings;
-  includeRegistration?: boolean;
   creep?: CreepSettings;
+  /** Output profile. Defaults to the full print-ready sheet. */
+  mode?: ExportFormat;
+  /** Object-stream compression on save. Defaults to true. */
+  compress?: boolean;
 }
 
 const LINE_COLOR = rgb(0.1, 0.1, 0.1);
 const SAFE_COLOR = rgb(0.2, 0.55, 0.95);
 const BLEED_COLOR = rgb(0.9, 0.2, 0.25);
 const FOLD_COLOR = rgb(0.45, 0.35, 0.85);
+const CENTER_COLOR = rgb(0.35, 0.35, 0.35);
+const CROP_GAP_MM = 2;
+const CROP_LENGTH_MM = 5;
 
-async function embedAllPages(outDoc: PDFDocument, sourceBytes: Uint8Array) {
+/**
+ * Embed only the source pages the plan actually references. `pages` may hold
+ * duplicates (fine — one embed, many draws) and the user may have deleted
+ * source pages, which must not be carried into the output file.
+ */
+async function embedUsedPages(
+  outDoc: PDFDocument,
+  sourceBytes: Uint8Array,
+  pages: PageInfo[]
+): Promise<Map<number, PDFEmbeddedPage>> {
   const srcDoc = await PDFDocument.load(sourceBytes);
-  return outDoc.embedPdf(srcDoc, srcDoc.getPageIndices());
+  const wanted = [
+    ...new Set(
+      pages
+        .filter((p) => !p.isBlank && p.originalIndex !== null)
+        .map((p) => p.originalIndex as number)
+        .filter((idx) => idx >= 0 && idx < srcDoc.getPageCount())
+    ),
+  ].sort((a, b) => a - b);
+
+  const embedded = wanted.length ? await outDoc.embedPdf(srcDoc, wanted) : [];
+  return new Map(wanted.map((srcIndex, position) => [srcIndex, embedded[position]]));
 }
 
 function drawCropMarks(page: PDFPage, marks: { x: number; y: number; dx: -1 | 1; dy: -1 | 1 }[], gapPt: number, lenPt: number) {
@@ -38,6 +83,26 @@ function drawCropMarks(page: PDFPage, marks: { x: number; y: number; dx: -1 | 1;
     const dy = mark.dy;
     page.drawLine({ start: { x: x + dx * gapPt, y }, end: { x: x + dx * (gapPt + lenPt), y }, thickness: 0.6, color: LINE_COLOR });
     page.drawLine({ start: { x, y: y + dy * gapPt }, end: { x, y: y + dy * (gapPt + lenPt) }, thickness: 0.6, color: LINE_COLOR });
+  }
+}
+
+/**
+ * Printer's registration targets: a crosshair inside a circle, one near each
+ * corner of the sheet, sitting inside whatever margin the layout leaves over.
+ */
+function drawRegistrationMarks(page: PDFPage, sheetWPt: number, sheetHPt: number, insetPt: number) {
+  const radius = Math.min(2.4, insetPt / 2);
+  const arm = radius + 2.4;
+  const corners = [
+    { x: insetPt, y: insetPt },
+    { x: sheetWPt - insetPt, y: insetPt },
+    { x: insetPt, y: sheetHPt - insetPt },
+    { x: sheetWPt - insetPt, y: sheetHPt - insetPt },
+  ];
+  for (const c of corners) {
+    page.drawCircle({ x: c.x, y: c.y, size: radius, borderColor: LINE_COLOR, borderWidth: 0.5 });
+    page.drawLine({ start: { x: c.x - arm, y: c.y }, end: { x: c.x + arm, y: c.y }, thickness: 0.5, color: LINE_COLOR });
+    page.drawLine({ start: { x: c.x, y: c.y - arm }, end: { x: c.x, y: c.y + arm }, thickness: 0.5, color: LINE_COLOR });
   }
 }
 
@@ -119,8 +184,41 @@ function drawPlacement(
       SAFE_COLOR
     );
   }
-
 }
+
+function addDividerPage(
+  outDoc: PDFDocument,
+  size: [number, number],
+  label: string,
+  sublabel: string,
+  font?: PDFFont
+) {
+  const page = outDoc.addPage(size);
+  page.drawRectangle({ x: 0, y: 0, width: size[0], height: size[1], color: rgb(1, 1, 1) });
+  if (!font) return page;
+  const width = font.widthOfTextAtSize(label, 18);
+  page.drawText(label, { x: (size[0] - width) / 2, y: size[1] / 2 + 6, size: 18, font, color: rgb(0.05, 0.05, 0.05) });
+  const subWidth = font.widthOfTextAtSize(sublabel, 10);
+  page.drawText(sublabel, { x: (size[0] - subWidth) / 2, y: size[1] / 2 - 14, size: 10, font, color: rgb(0.35, 0.35, 0.35) });
+  return page;
+}
+
+/**
+ * Tells a print driver how the job is meant to be produced:
+ *  - DuplexFlipShortEdge: the back side of every sheet was laid out for a
+ *    flip around the vertical (fold) axis. "Flip on long edge" would put pages
+ *    behind the wrong partners and silently ruin the whole run.
+ *  - PrintScaling None: never "fit to page" a prepress sheet.
+ */
+function applyPrintIntent(outDoc: PDFDocument, duplex: boolean) {
+  const prefs = PDFDict.withContext(outDoc.context);
+  prefs.set(PDFName.of("PrintScaling"), PDFName.of("None"));
+  if (duplex) prefs.set(PDFName.of("Duplex"), PDFName.of("DuplexFlipShortEdge"));
+  outDoc.catalog.set(PDFName.of("ViewerPreferences"), prefs);
+}
+
+const sheetSideIsEmpty = (side: { left: number | null; right: number | null }) =>
+  side.left === null && side.right === null;
 
 export async function buildImpositionPdf(params: BuildImpositionParams): Promise<Uint8Array> {
   const {
@@ -131,53 +229,74 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
     signatureSize,
     bookSize,
     paperSize,
-    bleedMm,
     safeAreaMm,
     gutterMm,
     marks,
     creep,
+    mode = "print-ready",
+    compress = true,
   } = params;
 
-  const outDoc = await PDFDocument.create();
-  const embeddedPages = await embedAllPages(outDoc, sourceBytes);
-  const plan = planImposition(pages.length, binding, signatureSize, bindingDirection);
+  const isPreview = mode === "preview";
+  const drawMarks = !isPreview;
 
+  // Preview is an approval artifact: artwork is fitted to trim and no marks are
+  // drawn, which keeps the file small enough to mail to a client.
+  const bleedMm = isPreview ? 0 : params.bleedMm;
+  const outputMarks: MarksSettings = {
+    showCropMarks: drawMarks && marks.showCropMarks,
+    showBleedArea: drawMarks && marks.showBleedArea,
+    showSafeArea: drawMarks && marks.showSafeArea,
+    showFoldMarks: drawMarks && marks.showFoldMarks,
+    showCenterLine: drawMarks && marks.showCenterLine,
+    showRegistrationMarks: drawMarks && marks.showRegistrationMarks,
+  };
+
+  const outDoc = await PDFDocument.create();
+  outDoc.setProducer("BookPrint Layout");
+  outDoc.setCreator("BookPrint Layout");
+  const embeddedByIndex = await embedUsedPages(outDoc, sourceBytes, pages);
+  const plan: ImpositionPlan = planImposition(pages.length, binding, signatureSize, bindingDirection);
 
   const resolvePage = (pageNumber: number | null) => {
     if (pageNumber === null || pageNumber < 1 || pageNumber > pages.length) return null;
     const info = pages[pageNumber - 1];
     if (!info || info.isBlank || info.originalIndex === null) return null;
-    const embedded = embeddedPages[info.originalIndex];
+    const embedded = embeddedByIndex.get(info.originalIndex);
     return embedded ? { embedded, info } : null;
   };
 
   const sheetWidthPt = mmToPt(paperSize.width);
   const sheetHeightPt = mmToPt(paperSize.height);
   const isFolded = binding !== "perfect-binding";
+  const dividerFont = mode === "per-signature" ? await outDoc.embedFont(StandardFonts.Helvetica) : undefined;
 
-  plan.sheets.forEach((sheet) => {
-    const geometry = buildSheetGeometry({
-          sheet,
-          paper: paperSize,
-          bookSize,
-                bleedMm,
-          gutterMm,
-          safeAreaMm,
-          binding,
-          bindingDirection,
-          pages,
-          marks,
-          creep,
-          sheetCount: plan.sheets.length,
-        });
-    if (!geometry) return;
+  // Free margin around the imposed spread, used to place printer's marks.
+  const pairWidth = bookSize.width * 2 + (binding === "perfect-binding" ? Math.max(0, gutterMm) : 0);
+  const sideMarginMm = Math.max(0, (paperSize.width - pairWidth) / 2);
+  const topMarginMm = Math.max(0, (paperSize.height - bookSize.height) / 2);
+  const regInsetPt = Math.max(3, Math.min(mmToPt(5), Math.min(sideMarginMm, topMarginMm) * 72 / 25.4 - mmToPt(1)));
 
-    const frontPage = outDoc.addPage([sheetWidthPt, sheetHeightPt]);
-    drawPlacement(frontPage, geometry.front.left, resolvePage(sheet.front.left), marks);
-    drawPlacement(frontPage, geometry.front.right, resolvePage(sheet.front.right), marks);
-    if (marks.showCropMarks) drawCropMarks(frontPage, geometry.cropMarks, mmToPt(2), mmToPt(5));
-    if (marks.showFoldMarks && isFolded) {
-      frontPage.drawLine({
+  type SidePlacements = { left: PagePlacement; right: PagePlacement };
+
+  const drawSide = (geometry: SheetGeometry, placements: SidePlacements, pageNumbers: SheetSide) => {
+    const page = outDoc.addPage([sheetWidthPt, sheetHeightPt]);
+    drawPlacement(page, placements.left, resolvePage(pageNumbers.left), outputMarks);
+    drawPlacement(page, placements.right, resolvePage(pageNumbers.right), outputMarks);
+
+    if (outputMarks.showCropMarks) drawCropMarks(page, geometry.cropMarks, mmToPt(CROP_GAP_MM), mmToPt(CROP_LENGTH_MM));
+    if (outputMarks.showRegistrationMarks) drawRegistrationMarks(page, sheetWidthPt, sheetHeightPt, regInsetPt);
+    if (outputMarks.showCenterLine) {
+      page.drawLine({
+        start: { x: sheetWidthPt / 2, y: 0 },
+        end: { x: sheetWidthPt / 2, y: sheetHeightPt },
+        thickness: 0.5,
+        color: CENTER_COLOR,
+        dashArray: [2, 2],
+      });
+    }
+    if (outputMarks.showFoldMarks && isFolded) {
+      page.drawLine({
         start: { x: mmToPt(geometry.foldX), y: 0 },
         end: { x: mmToPt(geometry.foldX), y: sheetHeightPt },
         thickness: 0.6,
@@ -185,25 +304,48 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
         dashArray: [6, 4],
       });
     }
+  };
 
-    if (isFolded) {
-      const backPage = outDoc.addPage([sheetWidthPt, sheetHeightPt]);
-      drawPlacement(backPage, geometry.back.left, resolvePage(sheet.back.left), marks);
-      drawPlacement(backPage, geometry.back.right, resolvePage(sheet.back.right), marks);
-      if (marks.showCropMarks) drawCropMarks(backPage, geometry.cropMarks, mmToPt(2), mmToPt(5));
-      if (marks.showFoldMarks) {
-        backPage.drawLine({
-          start: { x: mmToPt(geometry.foldX), y: 0 },
-          end: { x: mmToPt(geometry.foldX), y: sheetHeightPt },
-          thickness: 0.6,
-          color: FOLD_COLOR,
-          dashArray: [6, 4],
-        });
-      }
+  let previousSignature: number | null = null;
+  for (const sheet of plan.sheets) {
+    if (mode === "per-signature" && sheet.signature !== previousSignature) {
+      previousSignature = sheet.signature;
+      const range: SignatureRange | undefined = plan.signatures.find((s) => s.index === sheet.signature);
+      const label = `Signature ${sheet.signature}`;
+      const sub = range
+        ? `pages ${range.startPage}-${range.endPage} · ${plan.signatureSheetCounts[sheet.signature] ?? 0} sheets`
+        : "";
+      addDividerPage(outDoc, [sheetWidthPt, sheetHeightPt], label, sub, dividerFont);
     }
-  });
 
-  return outDoc.save();
+    const geometry = buildSheetGeometry({
+      sheet,
+      paper: paperSize,
+      bookSize,
+      bleedMm,
+      gutterMm,
+      safeAreaMm: outputMarks.showSafeArea ? safeAreaMm : 0,
+      binding,
+      bindingDirection,
+      pages,
+      marks: outputMarks,
+      creep,
+      signatureSheetCount: plan.signatureSheetCounts[sheet.signature] ?? 1,
+    });
+
+    drawSide(geometry, geometry.front, sheet.front);
+
+    // Booklet-style bindings always need the back side (it is the same folded
+    // sheet). Perfect binding only when that side actually carries pages, so a
+    // short run does not gain a blank sheet.
+    if (isFolded || !sheetSideIsEmpty(sheet.back)) {
+      drawSide(geometry, geometry.back, sheet.back);
+    }
+  }
+
+  applyPrintIntent(outDoc, isFolded || plan.sheets.some((s) => !sheetSideIsEmpty(s.back)));
+
+  return outDoc.save({ useObjectStreams: compress });
 }
 
 export interface BuildCoverParams {
@@ -214,10 +356,20 @@ export interface BuildCoverParams {
   backBytes?: Uint8Array | null;
   spineBytes?: Uint8Array | null;
   includeCropMarks?: boolean;
+  compress?: boolean;
 }
 
 export async function buildCoverPdf(params: BuildCoverParams): Promise<Uint8Array> {
-  const { bookSize, spineWidthMm, bleedMm, frontBytes, backBytes, spineBytes, includeCropMarks = true } = params;
+  const {
+    bookSize,
+    spineWidthMm,
+    bleedMm,
+    frontBytes,
+    backBytes,
+    spineBytes,
+    includeCropMarks = true,
+    compress = true,
+  } = params;
   const outDoc = await PDFDocument.create();
 
   const bleedPt = mmToPt(bleedMm);
@@ -274,8 +426,10 @@ export async function buildCoverPdf(params: BuildCoverParams): Promise<Uint8Arra
 
   if (includeCropMarks) {
     const trim = { x: bleedPt, y: bleedPt, width: trimWPt * 2 + spinePt, height: trimHPt };
-    const gap = mmToPt(2);
-    const len = mmToPt(5);
+    // Marks are drawn outside the trim box; with little or no bleed there is no
+    // room, so they shrink to fit instead of falling off the page invisibly.
+    const gap = Math.min(mmToPt(CROP_GAP_MM), Math.max(1.5, bleedPt - 1));
+    const len = Math.min(mmToPt(CROP_LENGTH_MM), Math.max(3, gap * 2));
     const marks = [
       { x: trim.x, y: trim.y, dx: -1 as const, dy: -1 as const },
       { x: trim.x + trim.width, y: trim.y, dx: 1 as const, dy: -1 as const },
@@ -288,7 +442,9 @@ export async function buildCoverPdf(params: BuildCoverParams): Promise<Uint8Arra
     }
   }
 
-  return outDoc.save();
+  applyPrintIntent(outDoc, false);
+
+  return outDoc.save({ useObjectStreams: compress });
 }
 
 export async function fileToBytes(file: File): Promise<Uint8Array> {

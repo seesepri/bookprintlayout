@@ -1,4 +1,21 @@
-import { BindingType, Sheet, SignatureRange } from "../types";
+import { BindingDirection, BindingType, Sheet, SheetSide } from "../types";
+import type { SignatureRange } from "../types";
+
+export interface ImpositionPlan {
+  paddedTotal: number;
+  sheets: Sheet[];
+  signatures: SignatureRange[];
+  /**
+   * Number of sheets inside each signature, keyed by signature index.
+   *
+   * Creep is a per-signature effect: every signature is folded as its own
+   * stack, so the outermost sheet of *each* signature needs the largest shift.
+   * Callers must feed this back into the creep calculation instead of the
+   * global sheet count, otherwise later signatures in a multi-signature book
+   * get an inflated shift.
+   */
+  signatureSheetCounts: Record<number, number>;
+}
 
 export function padToMultiple(pageCount: number, multiple: number): number {
   if (multiple <= 0) return pageCount;
@@ -10,26 +27,67 @@ export function blankPagesNeeded(pageCount: number, multiple: number): number {
   return padToMultiple(pageCount, multiple) - pageCount;
 }
 
+/** Pages beyond the real page count become virtual blanks (null). */
+function toPlacement(pageNumber: number, realPages: number, offset: number): number | null {
+  return pageNumber > realPages ? null : pageNumber + offset;
+}
+
+/** Mirror a spread for right-to-left binding. */
+function orient(side: SheetSide, direction: BindingDirection): SheetSide {
+  if (direction !== "right") return side;
+  return { left: side.right, right: side.left };
+}
+
 /** Classic booklet order for a single signature/booklet. */
-export function computeBookletSheets(totalPages: number, signatureIndex = 1, offset = 0, bindingDirection: "left" | "right" = "left"): Sheet[] {
+export function computeBookletSheets(
+  totalPages: number,
+  signatureIndex = 1,
+  offset = 0,
+  bindingDirection: BindingDirection = "left"
+): Sheet[] {
   const padded = padToMultiple(totalPages, 4);
   const sheets: Sheet[] = [];
 
   for (let i = 0; i < padded / 4; i++) {
-    const frontLeft = padded - 2 * i;
-    const frontRight = 2 * i + 1;
-    const backLeft = 2 * i + 2;
-    const backRight = padded - 2 * i - 1;
+    const frontLeft = toPlacement(padded - 2 * i, totalPages, offset);
+    const frontRight = toPlacement(2 * i + 1, totalPages, offset);
+    const backLeft = toPlacement(2 * i + 2, totalPages, offset);
+    const backRight = toPlacement(padded - 2 * i - 1, totalPages, offset);
 
-    const toPageNum = (raw: number): number | null => (raw > totalPages ? null : raw + offset);
+    sheets.push({
+      index: i,
+      signature: signatureIndex,
+      front: orient({ left: frontLeft, right: frontRight }, bindingDirection),
+      back: orient({ left: backLeft, right: backRight }, bindingDirection),
+    });
+  }
 
-    const front = { left: toPageNum(frontLeft), right: toPageNum(frontRight) };
-    const back = { left: toPageNum(backLeft), right: toPageNum(backRight) };
-    if (bindingDirection === "right") {
-      [front.left, front.right] = [front.right, front.left];
-      [back.left, back.right] = [back.right, back.left];
-    }
-    sheets.push({ index: i, signature: signatureIndex, front, back });
+  return sheets;
+}
+
+/**
+ * Perfect binding: sheets are not folded, they are stacked and glued, so pages
+ * run in reading order — two pages on the front, the next two on the back of
+ * the same sheet (flip on short edge). Printing front-side only would double
+ * the paper needed for the same book.
+ */
+export function computePerfectBindingSheets(
+  totalPages: number,
+  bindingDirection: BindingDirection = "left"
+): Sheet[] {
+  const padded = padToMultiple(totalPages, 4);
+  const sheets: Sheet[] = [];
+
+  for (let i = 0; i < padded / 4; i++) {
+    const front = orient(
+      { left: toPlacement(4 * i + 1, totalPages, 0), right: toPlacement(4 * i + 2, totalPages, 0) },
+      bindingDirection
+    );
+    const back = orient(
+      { left: toPlacement(4 * i + 3, totalPages, 0), right: toPlacement(4 * i + 4, totalPages, 0) },
+      bindingDirection
+    );
+    sheets.push({ index: i, signature: 1, front, back });
   }
 
   return sheets;
@@ -59,29 +117,18 @@ export function planImposition(
   totalPagesRaw: number,
   binding: BindingType,
   signatureSize = 16,
-  bindingDirection: "left" | "right" = "left"
-): { paddedTotal: number; sheets: Sheet[]; signatures: SignatureRange[] } {
+  bindingDirection: BindingDirection = "left"
+): ImpositionPlan {
   const totalPages = Math.max(0, Math.floor(totalPagesRaw));
 
   if (binding === "perfect-binding") {
-    const paddedTotal = padToMultiple(totalPages, 2);
-    const sheets: Sheet[] = [];
-
-    for (let i = 0; i < paddedTotal / 2; i++) {
-      const left = 2 * i + 1;
-      const right = 2 * i + 2;
-      let front = {
-        left: left <= totalPages ? left : null,
-        right: right <= totalPages ? right : null,
-      };
-      if (bindingDirection === "right") [front.left, front.right] = [front.right, front.left];
-      sheets.push({ index: i, signature: 1, front, back: { left: null, right: null } });
-    }
-
+    const paddedTotal = padToMultiple(totalPages, 4);
+    const sheets = computePerfectBindingSheets(totalPages, bindingDirection);
     return {
       paddedTotal,
       sheets,
       signatures: totalPages ? [{ index: 1, startPage: 1, endPage: totalPages, pageCount: totalPages }] : [],
+      signatureSheetCounts: { 1: sheets.length },
     };
   }
 
@@ -89,6 +136,7 @@ export function planImposition(
     const signatureMultiple = Math.max(4, Math.floor(signatureSize / 4) * 4);
     const ranges = computeSignatureRanges(totalPages, signatureMultiple);
     const signatures: SignatureRange[] = [];
+    const signatureSheetCounts: Record<number, number> = {};
     let sheets: Sheet[] = [];
     let paddedTotal = 0;
 
@@ -96,23 +144,34 @@ export function planImposition(
       const localCount = padToMultiple(range.pageCount, 4);
       const paddedRange = { ...range, pageCount: localCount, endPage: range.startPage + localCount - 1 };
       signatures.push(paddedRange);
-      sheets = sheets.concat(
-        computeBookletSheets(localCount, range.index, range.startPage - 1, bindingDirection)
-      );
+      const localSheets = computeBookletSheets(localCount, range.index, range.startPage - 1, bindingDirection);
+      signatureSheetCounts[range.index] = localSheets.length;
+      sheets = sheets.concat(localSheets);
       paddedTotal += localCount;
     }
 
-    return { paddedTotal, sheets, signatures };
+    return { paddedTotal, sheets, signatures, signatureSheetCounts };
   }
 
   const paddedTotal = padToMultiple(totalPages, 4);
+  const sheets = computeBookletSheets(totalPages, 1, 0, bindingDirection);
   return {
     paddedTotal,
-    sheets: computeBookletSheets(totalPages, 1, 0, bindingDirection),
+    sheets,
     signatures: totalPages ? [{ index: 1, startPage: 1, endPage: totalPages, pageCount: totalPages }] : [],
+    signatureSheetCounts: { 1: sheets.length },
   };
 }
 
+/**
+ * How far a page should be shifted outward to survive trimming.
+ *
+ * `totalSheets` must be the sheet count of the *sheet's own signature*, and
+ * `sheetPositionFromOuter` is its position inside that signature (1 = outermost).
+ * The auto rule is the classic linear approximation: every sheet between the
+ * one being shifted and the centre of the fold pushes the block outward by
+ * roughly twice the caliper of one sheet.
+ */
 export function computeCreepShiftMm(
   sheetPositionFromOuter: number,
   totalSheets: number,

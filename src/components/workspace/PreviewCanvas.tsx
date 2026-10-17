@@ -37,11 +37,15 @@ export default function PreviewCanvas() {
     [activePaperSize, state.orientation, activeBookSize]
   );
 
+  const currentSheet = plan.sheets[Math.min(sheetIndex, Math.max(plan.sheets.length - 1, 0))];
+  const signatureSheetCountOfSheet = currentSheet
+    ? plan.signatureSheetCounts[currentSheet.signature] ?? 1
+    : 1;
+
   const scale = BASE_PX_PER_MM * state.zoom;
   const sheetWpx = paper.width * scale;
   const sheetHpx = paper.height * scale;
 
-  const sheet = plan.sheets[Math.min(sheetIndex, Math.max(plan.sheets.length - 1, 0))];
   const isFolded = state.binding !== "perfect-binding";
 
   const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
@@ -95,9 +99,23 @@ export default function PreviewCanvas() {
       pages: state.pages,
       marks: state.marks,
       creep: state.creep,
-      sheetCount: plan.sheets.length,
+      signatureSheetCount: signatureSheetCountOfSheet,
     });
-  }, [plan.sheets, sheetIndex, paper, activeBookSize, state.bleedMm, state.gutterMm, state.binding, state.bindingDirection, state.pages, state.marks, state.creep]);
+  }, [
+    plan.sheets,
+    sheetIndex,
+    paper,
+    activeBookSize,
+    state.bleedMm,
+    state.safeAreaMm,
+    state.gutterMm,
+    state.binding,
+    state.bindingDirection,
+    state.pages,
+    state.marks,
+    state.creep,
+    signatureSheetCountOfSheet,
+  ]);
 
   const renderPlacement = (placement: PagePlacement) => {
     const info = getPageThumb(state.pages, placement.pageNumber);
@@ -302,7 +320,7 @@ export default function PreviewCanvas() {
                         className="flex aspect-[3/4] flex-1 items-center justify-center overflow-hidden rounded border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
                       >
                         {getPageThumb(state.pages, n)?.thumbnail ? (
-                          <img src={getPageThumb(state.pages, n)!.thumbnail} className="h-full w-full object-contain" />
+                          <img src={getPageThumb(state.pages, n)!.thumbnail} alt={`Halaman ${n}`} className="h-full w-full object-contain" />
                         ) : (
                           <span className="text-xs font-bold text-slate-300">{n ?? "-"}</span>
                         )}
@@ -364,6 +382,22 @@ export default function PreviewCanvas() {
                         className="pointer-events-none absolute top-0 z-10 h-full border-l border-dashed border-violet-400"
                         style={{ left: geometry.foldX * scale }}
                       />
+                    )}
+                    {state.marks.showRegistrationMarks && (
+                      <>
+                        {[
+                          { x: 5, y: 5 },
+                          { x: paper.width - 5, y: 5 },
+                          { x: 5, y: paper.height - 5 },
+                          { x: paper.width - 5, y: paper.height - 5 },
+                        ].map((c, i) => (
+                          <div key={i} className="pointer-events-none absolute" style={{ left: c.x * scale, top: c.y * scale }}>
+                            <div className="absolute h-px w-3 -translate-x-1/2 -translate-y-1/2 bg-slate-700" />
+                            <div className="absolute h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-slate-700" />
+                            <div className="absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-700" />
+                          </div>
+                        ))}
+                      </>
                     )}
                     {state.marks.showCenterLine && (
                       <div className="pointer-events-none absolute left-1/2 top-0 h-full border-l border-dashed border-slate-700" />

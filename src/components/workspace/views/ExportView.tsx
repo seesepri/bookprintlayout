@@ -1,74 +1,30 @@
 import { useEffect, useState } from "react";
-import { DownloadCloud, Loader2, FileCheck2, Gauge } from "lucide-react";
+import { DownloadCloud, Loader2, FileCheck2, Printer } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
-import { ExportFormat, ExportQuality } from "../../../types";
+import { ExportFormat } from "../../../types";
 import { buildImpositionPdf, bytesToBlob } from "../../../lib/pdfEngine";
-import { planImposition } from "../../../lib/imposition";
-import { validateImposition } from "../../../lib/geometry";
-import { orientedPaperSize } from "../../../lib/previewHelpers";
+import { EXPORT_SUFFIX, resolveExportOptions } from "../../../lib/exportOptions";
 import toast from "react-hot-toast";
 
 const FORMATS: { key: ExportFormat; label: string; desc: string }[] = [
   { key: "print-ready", label: "PDF Print Ready", desc: "Semua lembar imposition lengkap dengan marks." },
-  { key: "preview", label: "PDF Preview", desc: "Versi ringan untuk pratinjau/approval klien." },
-  { key: "per-signature", label: "PDF Per Signature", desc: "File terpisah per signature (diunduh sebagai satu PDF gabungan bertanda)." },
-];
-
-const QUALITIES: { key: ExportQuality; label: string }[] = [
-  { key: "standard", label: "Standard" },
-  { key: "high", label: "High Quality" },
-  { key: "print", label: "Print Quality" },
+  { key: "preview", label: "PDF Preview", desc: "Tanpa marks, artwork pas di trim — buat approval klien." },
+  { key: "per-signature", label: "PDF Per Signature", desc: "Halaman pembatas otomatis tiap awal signature, dalam satu file." },
 ];
 
 export default function ExportView() {
   const { state, dispatch, activeBookSize, activePaperSize } = useProject();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const plan = planImposition(state.pages.length, state.binding, state.signatureSize, state.bindingDirection);
-  const paper = orientedPaperSize(activePaperSize, state.orientation, activeBookSize);
-  const validation = validateImposition({
-    pages: state.pages,
-    sheets: plan.sheets,
-    sheetCount: plan.sheets.length,
-    paddedTotal: plan.paddedTotal,
-    paper,
-    bookSize: activeBookSize,
-    bleedMm: state.exportSettings.includeBleed ? state.bleedMm : 0,
-    gutterMm: state.gutterMm,
-    safeAreaMm: state.safeAreaMm,
-    marks: { ...state.marks, showCropMarks: state.exportSettings.includeCropMarks && state.marks.showCropMarks },
-    binding: state.binding,
-    creep: state.creep,
-  });
+  const resolved = resolveExportOptions(state, activeBookSize, activePaperSize);
+  const { plan, paper, validation } = resolved;
 
   useEffect(() => {
-    // Invalidate an old generated preview only when an actual layout/export
-    // input changes. Avoid depending on derived object references such as
-    // `paper`, which are recreated on every render and would clear the PDF
-    // immediately after generation.
-    setPreviewUrl(null);
-  }, [
-    state.pages,
-    state.binding,
-    state.bindingDirection,
-    state.signatureSize,
-    activeBookSize.width,
-    activeBookSize.height,
-    paper.width,
-    paper.height,
-    state.bleedMm,
-    state.safeAreaMm,
-    state.gutterMm,
-    state.marks.showCropMarks,
-    state.marks.showCenterLine,
-    state.marks.showSafeArea,
-    state.exportSettings.includeCropMarks,
-    state.exportSettings.includeBleed,
-    state.exportSettings.includeRegistration,
-    state.creep.mode,
-    state.creep.paperThicknessMm,
-    state.creep.manualAmountMm,
-  ]);
+    if (!previewUrl) return;
+    // Object URLs for the preview iframe were never released, so every
+    // "Generate" click leaked another copy of the PDF for the tab's lifetime.
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   const generate = async () => {
     if (!state.sourceBytes || !state.pages.length) {
@@ -90,19 +46,16 @@ export default function ExportView() {
         signatureSize: state.signatureSize,
         bookSize: activeBookSize,
         paperSize: paper,
-            bleedMm: state.exportSettings.includeBleed ? state.bleedMm : 0,
-        safeAreaMm: state.marks.showSafeArea ? state.safeAreaMm : 0,
-        gutterMm: state.gutterMm,
+        bleedMm: resolved.bleedMm,
+        safeAreaMm: resolved.safeAreaMm,
+        gutterMm: resolved.gutterMm,
         creep: state.creep,
-        marks: {
-          ...state.marks,
-          showCropMarks: state.exportSettings.includeCropMarks && state.marks.showCropMarks,
-          showCenterLine: state.exportSettings.includeRegistration && state.marks.showCenterLine,
-        },
+        marks: resolved.marks,
+        mode: state.exportSettings.format,
+        compress: resolved.compress,
       });
       dispatch({ type: "SET_GENERATED", bytes });
-      const blob = bytesToBlob(bytes);
-      setPreviewUrl(URL.createObjectURL(blob));
+      setPreviewUrl(URL.createObjectURL(bytesToBlob(bytes)));
       toast.success("PDF siap cetak berhasil dibuat!", { id });
     } catch (e) {
       console.error(e);
@@ -119,7 +72,7 @@ export default function ExportView() {
     const a = document.createElement("a");
     a.href = url;
     const base = state.meta.fileName.replace(/\.pdf$/i, "") || "bookprint";
-    a.download = `${base}_imposed.pdf`;
+    a.download = `${base}_${EXPORT_SUFFIX[state.exportSettings.format] ?? "imposed"}.pdf`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -152,27 +105,6 @@ export default function ExportView() {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">
-              <Gauge className="h-3.5 w-3.5" /> Quality
-            </h3>
-            <div className="flex gap-2">
-              {QUALITIES.map((q) => (
-                <button
-                  key={q.key}
-                  onClick={() => dispatch({ type: "SET_EXPORT", settings: { quality: q.key } })}
-                  className={`rounded-lg border px-4 py-2 text-xs font-semibold ${
-                    state.exportSettings.quality === q.key
-                      ? "border-indigo-500 bg-indigo-600 text-white"
-                      : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  {q.label}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-400">Opsi Tambahan</h3>
             <div className="grid grid-cols-2 gap-2.5">
               {(
@@ -180,8 +112,7 @@ export default function ExportView() {
                   ["includeCropMarks", "Include Crop Marks"],
                   ["includeBleed", "Include Bleed"],
                   ["includeRegistration", "Include Registration Marks"],
-                  ["compress", "Compress PDF"],
-                  ["embedFonts", "Embed Fonts"],
+                  ["compress", "Compress PDF (object streams)"],
                 ] as const
               ).map(([key, label]) => (
                 <label key={key} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
@@ -194,6 +125,18 @@ export default function ExportView() {
                   {label}
                 </label>
               ))}
+            </div>
+          </section>
+
+          <section className="flex gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+            <Printer className="h-4 w-4 shrink-0" />
+            <div>
+              <div className="font-bold">Saat mencetak: pilih Duplex — “Flip on short edge”</div>
+              <div className="mt-1 leading-relaxed">
+                Sisi belakang lembar ditata untuk balik sekrup vertikal (sejajar garis lipat). Salah pilih
+                “flip on long edge” membuat semua halaman jatuh di belakang pasangan yang salah.
+                Preferensi ini juga ditulis ke dalam file sebagai <code>/ViewerPreferences /Duplex</code>.
+              </div>
             </div>
           </section>
 
@@ -215,6 +158,8 @@ export default function ExportView() {
             <RowInfo k="Book Size" v={`${activeBookSize.width}×${activeBookSize.height}mm`} />
             <RowInfo k="Paper Size" v={`${paper.width}×${paper.height}mm`} />
             <RowInfo k="Binding" v={`${state.binding} / ${state.bindingDirection}`} />
+            <RowInfo k="Halaman Belakang" v={state.binding === "perfect-binding" ? "Duplex, tanpa lipatan" : "Duplex + lipatan"} />
+            <RowInfo k="Marks di Output" v={Object.entries(resolved.marks).filter(([, on]) => on).map(([k]) => k.replace("show", "")).join(", ") || "tidak ada"} />
           </dl>
 
           <div className={`mt-4 rounded-lg border p-3 text-xs ${validation.valid ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>

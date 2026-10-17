@@ -174,6 +174,29 @@ function requiredSheetSize(bookSize: SizeMM, bleedMm: number, gutterMm: number, 
   };
 }
 
+/** Below this a "mark" is a stub nobody can trim against: skip it instead. */
+export const MIN_MARK_SPAN_PT = 4;
+
+/**
+ * How far a mark may reach, given the room between the trim edge and the edge
+ * of the physical sheet. Shared by the renderer and the geometry check so the
+ * two can never disagree about what "there is no room for marks" means.
+ *
+ * Returns null when the mark would be useless; the caller skips that axis.
+ */
+export function fitMarkRun(
+  roomPt: number,
+  gapPt: number,
+  lenPt: number
+): { gapPt: number; spanPt: number } | null {
+  if (!Number.isFinite(roomPt) || !Number.isFinite(gapPt) || !Number.isFinite(lenPt)) return null;
+  const spanPt = Math.min(gapPt + lenPt, roomPt - 1);
+  if (spanPt < MIN_MARK_SPAN_PT) return null;
+  // Keep the gap proportionally smaller than the mark itself, the way a
+  // traditional layout mark reads: a short gap, then a longer line.
+  return { gapPt: Math.min(gapPt, spanPt * 0.4), spanPt };
+}
+
 function fits(required: SizeMM, paper: SizeMM): boolean {
   return required.width <= paper.width + EPSILON && required.height <= paper.height + EPSILON;
 }

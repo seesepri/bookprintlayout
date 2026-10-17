@@ -22,7 +22,7 @@ import {
 import type { SignatureRange } from "../types";
 import { mmToPt } from "./paperSizes";
 import { ImpositionPlan, planImposition } from "./imposition";
-import { buildSheetGeometry, PagePlacement, SheetGeometry } from "./geometry";
+import { buildSheetGeometry, fitMarkRun, PagePlacement, SheetGeometry } from "./geometry";
 
 export interface BuildImpositionParams {
   sourceBytes: Uint8Array;
@@ -75,14 +75,28 @@ async function embedUsedPages(
   return new Map(wanted.map((srcIndex, position) => [srcIndex, embedded[position]]));
 }
 
-function drawCropMarks(page: PDFPage, marks: { x: number; y: number; dx: -1 | 1; dy: -1 | 1 }[], gapPt: number, lenPt: number) {
+/**
+ * Crop marks are only useful if the RIP can see them. Each axis is shortened to
+ * the room between the trim edge and the edge of the physical sheet, and skipped
+ * entirely when even that would be a stub. `validateImposition` already rejects
+ * undersized paper, so this is the safety net for anything calling the engine
+ * directly (tests, future exporters, the per-signature splitter).
+ *
+ * Exported because "no mark lands off-page" is worth a direct test.
+ */
+export function drawCropMarks(page: PDFPage, marks: { x: number; y: number; dx: -1 | 1; dy: -1 | 1 }[], gapPt: number, lenPt: number) {
+  const { width: pageW, height: pageH } = page.getSize();
   for (const mark of marks) {
     const x = mmToPt(mark.x);
     const y = mmToPt(mark.y);
-    const dx = mark.dx;
-    const dy = mark.dy;
-    page.drawLine({ start: { x: x + dx * gapPt, y }, end: { x: x + dx * (gapPt + lenPt), y }, thickness: 0.6, color: LINE_COLOR });
-    page.drawLine({ start: { x, y: y + dy * gapPt }, end: { x, y: y + dy * (gapPt + lenPt) }, thickness: 0.6, color: LINE_COLOR });
+    const runX = fitMarkRun(mark.dx < 0 ? x : pageW - x, gapPt, lenPt);
+    const runY = fitMarkRun(mark.dy < 0 ? y : pageH - y, gapPt, lenPt);
+    if (runX) {
+      page.drawLine({ start: { x: x + mark.dx * runX.gapPt, y }, end: { x: x + mark.dx * runX.spanPt, y }, thickness: 0.6, color: LINE_COLOR });
+    }
+    if (runY) {
+      page.drawLine({ start: { x, y: y + mark.dy * runY.gapPt }, end: { x, y: y + mark.dy * runY.spanPt }, thickness: 0.6, color: LINE_COLOR });
+    }
   }
 }
 
@@ -90,9 +104,11 @@ function drawCropMarks(page: PDFPage, marks: { x: number; y: number; dx: -1 | 1;
  * Printer's registration targets: a crosshair inside a circle, one near each
  * corner of the sheet, sitting inside whatever margin the layout leaves over.
  */
-function drawRegistrationMarks(page: PDFPage, sheetWPt: number, sheetHPt: number, insetPt: number) {
+export function drawRegistrationMarks(page: PDFPage, sheetWPt: number, sheetHPt: number, insetPt: number) {
   const radius = Math.min(2.4, insetPt / 2);
-  const arm = radius + 2.4;
+  // The arms reach outward from the centre of the cross, so on paper with almost
+  // no margin they would hang off the sheet: shorten them instead of clipping.
+  const arm = Math.min(radius + 2.4, Math.max(0.5, insetPt - 0.5));
   const corners = [
     { x: insetPt, y: insetPt },
     { x: sheetWPt - insetPt, y: insetPt },

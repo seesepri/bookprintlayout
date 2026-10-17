@@ -1,4 +1,8 @@
+import { useState } from "react";
 import {
+  Moon,
+  SquareDashed,
+  Sun,
   UploadCloud,
   Copy,
   SlidersHorizontal,
@@ -6,13 +10,16 @@ import {
   Image as ImageIcon,
   DownloadCloud,
   Layers3,
+  type LucideIcon,
 } from "lucide-react";
 
+import toast from "react-hot-toast";
 import { useProject, useProjectActions } from "../../state/ProjectContext";
-import { ViewKey } from "../../types";
+import type { ViewKey } from "../../types";
 import { cn } from "../../utils/cn";
+import { currentTheme, toggleTheme, type Theme } from "../../lib/theme";
 
-const MENU: { key: ViewKey; label: string; icon: any }[] = [
+const MENU: { key: ViewKey; label: string; icon: LucideIcon }[] = [
   { key: "upload", label: "Upload PDF", icon: UploadCloud },
   { key: "pages", label: "Pages", icon: Copy },
   { key: "layout", label: "Layout Settings", icon: Layers3 },
@@ -24,7 +31,16 @@ const MENU: { key: ViewKey; label: string; icon: any }[] = [
 
 export default function Sidebar() {
   const { state } = useProject();
-  const { setView, goLanding } = useProjectActions();
+  const { setView, goLanding, resetProject } = useProjectActions();
+  const hasWork = state.pages.length > 0;
+
+  const startNewProject = () => {
+    if (!hasWork || window.confirm("Mulai proyek baru? Layout saat ini dibuang, termasuk simpanan otomatisnya.")) {
+      resetProject();
+      toast.success("Proyek dikosongkan");
+    }
+  };
+  const [theme, setTheme] = useState<Theme>(() => currentTheme());
 
   return (
     <aside className="workspace-sidebar flex h-full w-14 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:w-60">
@@ -66,6 +82,27 @@ export default function Sidebar() {
         })}
       </nav>
 
+      <div className="border-t border-slate-200 px-2 py-3 md:px-3 dark:border-slate-800">
+        <button
+          onClick={() => setTheme(toggleTheme())}
+          aria-pressed={theme === "dark"}
+          title={theme === "dark" ? "Mode terang" : "Mode gelap"}
+          className="flex w-full items-center justify-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 md:justify-start md:px-3 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          <span className="hidden md:inline">{theme === "dark" ? "Mode Terang" : "Mode Gelap"}</span>
+        </button>
+        {hasWork && (
+          <button
+            onClick={startNewProject}
+            title="Kosongkan proyek dan simpanan otomatisnya"
+            className="mt-1 flex w-full items-center justify-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 md:justify-start md:px-3 dark:text-slate-300 dark:hover:bg-red-950/30"
+          >
+            <SquareDashed className="h-4 w-4" />
+            <span className="hidden md:inline">Proyek Baru</span>
+          </button>
+        )}
+      </div>
     </aside>
   );
 }

@@ -107,7 +107,8 @@ export function buildSheetGeometry(params: {
   pages: PageInfo[];
   marks: MarksSettings;
   creep?: CreepSettings;
-  sheetCount?: number;
+  /** Sheets inside this sheet's own signature — drives the creep schedule. */
+  signatureSheetCount?: number;
 }): SheetGeometry {
   const {
     sheet,
@@ -120,7 +121,7 @@ export function buildSheetGeometry(params: {
     bindingDirection = "left",
     pages,
     creep,
-    sheetCount = 1,
+    signatureSheetCount = 1,
   } = params;
 
   const pairGap = binding === "perfect-binding" ? Math.max(0, gutterMm) : 0;
@@ -129,9 +130,17 @@ export function buildSheetGeometry(params: {
   const originY = (paper.height - bookSize.height) / 2;
   const leftTrim = rect(originX, originY, bookSize.width, bookSize.height);
   const rightTrim = rect(originX + bookSize.width + pairGap, originY, bookSize.width, bookSize.height);
+  // Creep restarts per signature: sheet 1 is the outermost sheet of *its*
+  // signature, so the schedule must be relative to that signature's depth.
   const effectiveCreep = binding === "perfect-binding" || !creep
     ? 0
-    : computeCreepShiftMm(sheet.index + 1, sheetCount, creep.paperThicknessMm, creep.mode, creep.manualAmountMm);
+    : computeCreepShiftMm(
+        sheet.index + 1,
+        signatureSheetCount,
+        creep.paperThicknessMm,
+        creep.mode,
+        creep.manualAmountMm
+      );
 
   const makeSide = (left: number | null, right: number | null) => ({
     left: pagePlacement(left, leftTrim, bleedMm, gutterMm, safeAreaMm, bindingDirection, "left", pages, effectiveCreep),
@@ -173,6 +182,8 @@ export function validateImposition(params: {
   pages: PageInfo[];
   sheets: Sheet[];
   sheetCount: number;
+  /** Sheets per signature, used to size the worst-case creep shift. */
+  signatureSheetCounts?: Record<number, number>;
   paddedTotal: number;
   paper: SizeMM;
   bookSize: SizeMM;
@@ -183,30 +194,37 @@ export function validateImposition(params: {
   binding: BindingType;
   creep?: CreepSettings;
 }): ImpositionValidation {
-  const { pages, sheets, sheetCount, paddedTotal, paper, bookSize, bleedMm, gutterMm, safeAreaMm, marks, binding, creep } = params;
+  const { pages, sheets, sheetCount, signatureSheetCounts, paddedTotal, paper, bookSize, bleedMm, gutterMm, safeAreaMm, marks, binding, creep } = params;
   const errors: string[] = [];
   const warnings: string[] = [];
+  const deepestSignature = Math.max(1, ...Object.values(signatureSheetCounts ?? { 1: sheetCount }));
   const maxCreep = binding === "perfect-binding" || !creep
     ? 0
-    : computeCreepShiftMm(1, Math.max(1, sheetCount), creep.paperThicknessMm, creep.mode, creep.manualAmountMm);
+    : computeCreepShiftMm(1, deepestSignature, creep.paperThicknessMm, creep.mode, creep.manualAmountMm);
   const baseRequired = requiredSheetSize(bookSize, Math.max(0, bleedMm), gutterMm, binding, marks);
   const requiredSheet = { ...baseRequired, width: baseRequired.width + maxCreep * 2 };
 
   if (!validPositiveSize(paper)) errors.push("Ukuran kertas tidak valid.");
   if (!validPositiveSize(bookSize)) errors.push("Ukuran buku/trim tidak valid.");
-  const expectedSheets = binding === "perfect-binding" ? Math.ceil(paddedTotal / 2) : Math.ceil(paddedTotal / 4);
+  // Every binding fills 4 pages per physical sheet: booklet/saddle/signature by
+  // folding, perfect binding by duplexing the back side.
+  const expectedSheets = Math.ceil(paddedTotal / 4);
   if (sheetCount !== expectedSheets && pages.length > 0) {
     errors.push("Jumlah sheet imposition tidak konsisten dengan padding binding.");
   }
 
   const seen = new Map<number, number>();
   for (const sheet of sheets) {
-    const sides = [sheet.front.left, sheet.front.right, ...(binding === "perfect-binding" ? [] : [sheet.back.left, sheet.back.right])];
+    const sides = [sheet.front.left, sheet.front.right, sheet.back.left, sheet.back.right];
     for (const pageNumber of sides) {
       if (pageNumber !== null) seen.set(pageNumber, (seen.get(pageNumber) ?? 0) + 1);
     }
   }
-  for (let pageNumber = 1; pageNumber <= paddedTotal; pageNumber++) {
+  // Only real pages must appear exactly once. Slots added by padding are
+  // virtual (rendered as blanks by the engine), so they legitimately have no
+  // page number — checking up to paddedTotal rejected every book whose length
+  // was not a multiple of 4 and blocked export outright.
+  for (let pageNumber = 1; pageNumber <= Math.min(pages.length, paddedTotal); pageNumber++) {
     if ((seen.get(pageNumber) ?? 0) !== 1) {
       errors.push(`Urutan imposition tidak valid: halaman ${pageNumber} tidak muncul tepat satu kali.`);
       break;

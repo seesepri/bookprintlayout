@@ -1,9 +1,24 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BookPrintLayout</title>
+    <meta name="color-scheme" content="light dark" />
+    <!-- Inline: the build is a single HTML file, so an external /favicon.ico would 404. -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Crect%20width%3D%2732%27%20height%3D%2732%27%20rx%3D%277%27%20fill%3D%27%234f46e5%27%2F%3E%3Cpath%20d%3D%27M8.5%208.5h6.2a1.8%201.8%200%200%201%201.8%201.8v13.4a2.2%202.2%200%200%200-2.2-2.2H8.5z%27%20fill%3D%27%23fff%27%2F%3E%3Cpath%20d%3D%27M23.5%208.5h-6.2a1.8%201.8%200%200%200-1.8%201.8v13.4a2.2%202.2%200%200%201%202.2-2.2h5.8z%27%20fill%3D%27%23c7d2fe%27%2F%3E%3C%2Fsvg%3E" />
+    <meta
+      name="description"
+      content="BookPrint Layout — layout, imposition, dan persiapan PDF buku siap cetak. Berjalan 100% di browser, file tidak pernah diunggah ke server."
+    />
+    <title>BookPrint Layout — Book Imposition &amp; Print Layout</title>
+    <script>
+      // Applied before first paint so a dark-mode reload never flashes white.
+      try {
+        var t = localStorage.getItem("bookprint-theme");
+        if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

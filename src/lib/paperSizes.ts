@@ -37,13 +37,31 @@ export function applyOrientation(size: SizeMM, orientation: Orientation, referen
   return size;
 }
 
-export function formatMm(v: number) {
-  return `${v.toFixed(1)} mm`;
+/**
+ * Parses a numeric form field into a safe value.
+ *
+ * `Number("")` is 0 and `Number("abc")` is NaN, and both used to flow straight
+ * into project state (a cleared "Width" field silently became a 0 mm book).
+ * Everything downstream reads geometry in mm, so every numeric input goes
+ * through here instead.
+ */
+export function readNumberInput(
+  raw: string | number | null | undefined,
+  options: { fallback: number; min?: number; max?: number; step?: number }
+): number {
+  const parsed = typeof raw === "number" ? raw : Number.parseFloat(String(raw ?? ""));
+  const min = Number.isFinite(options.min) ? (options.min as number) : -Infinity;
+  const max = Number.isFinite(options.max) ? (options.max as number) : Infinity;
+  if (!Number.isFinite(parsed)) return clamp(options.fallback, min, max);
+  return clamp(parsed, min, max);
 }
 
-export function bytesToSize(bytes: number) {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
+
+/** Rounds to the nearest allowed step so mm inputs never drift past 0.01 mm. */
+export function snapToStep(value: number, step = 0.1): number {
+  return Number((Math.round(value / step) * step).toFixed(6));
+}
+

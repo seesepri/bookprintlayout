@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { UploadCloud, FileText, CheckCircle2 } from "lucide-react";
 import { useProject, useProjectActions } from "../../../state/ProjectContext";
 import { handleFileUpload } from "../../../lib/uploadHandler";
-import { bytesToSize } from "../../../lib/paperSizes";
+import { bytesToSize } from "../../../utils/format";
 import toast from "react-hot-toast";
 
 export default function UploadView() {
@@ -19,11 +19,14 @@ export default function UploadView() {
     }
     const id = toast.loading("Membaca & menganalisis PDF...");
     try {
-      await handleFileUpload(file, dispatch);
+      await handleFileUpload(file, dispatch, (done, total) => {
+        toast.loading(`Membaca PDF — halaman ${done}/${total}`, { id });
+      });
       toast.success("Dokumen berhasil dianalisis.", { id });
       setView("pages");
     } catch (e) {
-      toast.error("Gagal memproses PDF.", { id });
+      // e.message carries the specific reason (e.g. "file melebihi 150 MB").
+      toast.error(e instanceof Error ? e.message : "Gagal memproses PDF.", { id });
     }
   };
 

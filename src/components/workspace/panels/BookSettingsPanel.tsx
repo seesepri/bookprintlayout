@@ -1,6 +1,7 @@
 import { useProject } from "../../../state/ProjectContext";
-import { PresetBookSize, PresetPaperSize } from "../../../types";
+import { Orientation, PresetBookSize, PresetPaperSize } from "../../../types";
 import { PanelSection, Field, Select, NumberInput } from "./PanelShell";
+import { readNumberInput, snapToStep } from "../../../lib/paperSizes";
 
 const BOOK_PRESETS: PresetBookSize[] = ["A4", "A5", "A6", "B5", "Letter", "Custom"];
 const PAPER_PRESETS: PresetPaperSize[] = ["A4", "A3", "A2", "F4", "SRA3", "Custom"];
@@ -29,7 +30,7 @@ export default function BookSettingsPanel() {
                 onChange={(e) =>
                   dispatch({
                     type: "SET_BOOK_SIZE_CUSTOM",
-                    size: { ...state.bookSizeCustom, width: Number(e.target.value) },
+                    size: { ...state.bookSizeCustom, width: snapToStep(readNumberInput(e.target.value, { fallback: state.bookSizeCustom.width, min: 20, max: 2000 })) },
                   })
                 }
               />
@@ -40,7 +41,7 @@ export default function BookSettingsPanel() {
                 onChange={(e) =>
                   dispatch({
                     type: "SET_BOOK_SIZE_CUSTOM",
-                    size: { ...state.bookSizeCustom, height: Number(e.target.value) },
+                    size: { ...state.bookSizeCustom, height: snapToStep(readNumberInput(e.target.value, { fallback: state.bookSizeCustom.height, min: 20, max: 2000 })) },
                   })
                 }
               />
@@ -72,7 +73,7 @@ export default function BookSettingsPanel() {
                 onChange={(e) =>
                   dispatch({
                     type: "SET_PAPER_SIZE_CUSTOM",
-                    size: { ...state.paperSizeCustom, width: Number(e.target.value) },
+                    size: { ...state.paperSizeCustom, width: snapToStep(readNumberInput(e.target.value, { fallback: state.paperSizeCustom.width, min: 20, max: 2000 })) },
                   })
                 }
               />
@@ -83,7 +84,7 @@ export default function BookSettingsPanel() {
                 onChange={(e) =>
                   dispatch({
                     type: "SET_PAPER_SIZE_CUSTOM",
-                    size: { ...state.paperSizeCustom, height: Number(e.target.value) },
+                    size: { ...state.paperSizeCustom, height: snapToStep(readNumberInput(e.target.value, { fallback: state.paperSizeCustom.height, min: 20, max: 2000 })) },
                   })
                 }
               />
@@ -98,7 +99,7 @@ export default function BookSettingsPanel() {
         <Field label="Orientation">
           <Select
             value={state.orientation}
-            onChange={(e) => dispatch({ type: "SET_ORIENTATION", orientation: e.target.value as any })}
+            onChange={(e) => dispatch({ type: "SET_ORIENTATION", orientation: e.target.value as Orientation })}
           >
             <option value="auto">Auto</option>
             <option value="portrait">Portrait</option>

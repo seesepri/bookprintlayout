@@ -4,63 +4,132 @@
 desainer, penerbit, dan pengguna umum melakukan layout, imposition, dan persiapan file PDF buku
 sebelum proses cetak.
 
+> Semua pemrosesan terjadi di browser Anda. File PDF tidak pernah dikirim ke server mana pun.
+
+## ⚙️ Setting cetak yang wajib diperhatikan
+
+Hasil export adalah **lembar spread landscape** (2 halaman buku berdampingan per sisi). Saat
+mengeprint, pilih:
+
+```
+Duplex: Flip on SHORT EDGE        (bukan long edge)
+Page scaling: None / Actual size  (jangan "fit to page")
+```
+
+Sisi belakang lembar ditata untuk balik pada sumbu vertikal (sejajar garis lipat). Salah pilih
+"flip on long edge" membuat setiap halaman jatuh di belakang pasangan yang salah — seluruh cetakan
+rusak dan tidak bisa diselamatkan. Kedua preferensi ini juga ditulis ke dalam file PDF sebagai
+`/ViewerPreferences << /Duplex /DuplexFlipShortEdge /PrintScaling /None >>`, tapi **jangan
+mengandalkannya**: tidak semua driver/print dialog membaca metadata itu.
+
 ## Alur Kerja
 
 Upload PDF → Analisis Dokumen → Pilih Jenis Layout → Atur Ukuran Buku & Kertas → Generate
-Imposition → Preview → Export PDF Siap Cetak.
+Imposition → Preview → Export PDF Siap Cetak. Semua langkah di atas tersimpan otomatis
+di browser, jadi tab yang crash atau tidak sengaja di-refresh bisa dilanjutkan.
 
 ## Arsitektur
 
-Environment ini hanya menyediakan runtime frontend (React + Vite + TypeScript + Tailwind CSS),
-sehingga seluruh mesin pemrosesan PDF (analisis, thumbnail, dan imposition) diimplementasikan
+Repo ini hanya menyediakan runtime frontend (React + Vite + TypeScript + Tailwind CSS), sehingga
+seluruh mesin pemrosesan PDF (analisis, thumbnail, dan imposition) diimplementasikan
 **100% berjalan di browser** menggunakan:
 
 - **pdf.js (`pdfjs-dist`)** — membaca metadata PDF & merender thumbnail setiap halaman.
 - **pdf-lib** — merakit ulang halaman menjadi lembar cetak (imposition), menggambar crop mark,
-  bleed guide, fold mark, registration mark, dan menghasilkan cover layout, lalu menyimpannya
-  sebagai file PDF baru yang bisa diunduh.
+  bleed guide, fold mark, center line, registration mark, halaman pembatas antar-signature, dan
+  cover layout, lalu menyimpannya sebagai PDF baru.
 
 Pendekatan ini menggantikan kombinasi backend FastAPI/Node + PyMuPDF/pypdf/ReportLab yang
-disebutkan pada spesifikasi awal, namun tetap menghasilkan **fungsi nyata** (bukan sekadar UI):
-upload, analisis jumlah halaman, page management, perhitungan algoritma imposition, generate PDF,
-dan download file semuanya benar-benar berjalan.
+disebutkan pada spesifikasi awal. Konsekuensi yang perlu diketahui: tidak ada color management
+ICC, tidak ada flattening/transparency handling, dan tidak ada preflight PDF/X — output cocok
+untuk percetakan digital & offset sederhana, bukan untuk workgroup prepress yang menuntut PDF/X-4.
 
 ### Struktur Folder
 
 ```
 src/
   components/
-    landing/        Landing page
-    workspace/       Dashboard 3-kolom (sidebar, preview canvas, settings panel)
-      panels/        Panel pengaturan (Layout, Book, Print)
-      views/         Halaman penuh (Project, Upload, Pages, Cover, Export)
+    landing/          Landing page (hero + 8 kartu fitur)
+    workspace/        Dashboard 3-kolom (sidebar, preview canvas, settings panel)
+      panels/         Panel pengaturan (Layout, Book, Print)
+      views/          Halaman penuh (Upload, Pages, Cover, Export)
   lib/
-    imposition.ts    Algoritma inti: booklet order, signature split, creep
-    pdfEngine.ts      Generator PDF (pdf-lib): imposition & cover
-    pdfRender.ts      Rendering thumbnail (pdf.js)
-    uploadHandler.ts  Analisis file upload
-    paperSizes.ts     Preset ukuran kertas/buku & konversi satuan
-    previewHelpers.ts Util orientasi kertas & resolusi thumbnail halaman
+    imposition.ts     Algoritma inti: booklet order, perfect binding, signature split, creep
+    geometry.ts       Perhitungan mm (trim/bleed/safe/crop mark) + validasi
+    exportOptions.ts  SATU sumber kebenaran: user settings -> opsi yang dipakai validasi & build
+    pdfEngine.ts      Generator PDF (pdf-lib): imposition, divider, cover, print intent
+    pdfRender.ts      Rendering thumbnail (pdf.js) + lifecycle dokumen
+    uploadHandler.ts  Analisis file upload (progressif, ada batasnya)
+    paperSizes.ts     Preset ukuran kertas/buku, konversi satuan, parse input angka
+    previewHelpers.ts Util orientasi kertas & lookup thumbnail
+    theme.ts          Dark mode (class `.dark` yang dipakai index.css)
   state/
-    ProjectContext.tsx  Global state (React Context + useReducer)
-  types/               Definisi tipe TypeScript
+    ProjectContext.tsx  Global state (React Context + useReducer + undo)
+  types/                Definisi tipe TypeScript
 ```
 
-## Fitur Utama (MVP + Lanjutan)
+`src/lib/*` sengaja dijaga tetap murni (tanpa React, tanpa DOM) supaya bisa di-unit test di
+Node — lihat `src/lib/*.test.ts`.
 
-- Upload PDF & analisis otomatis (jumlah halaman, ukuran halaman, ukuran file)
-- Page Management: drag & drop reorder, rotate, delete, duplicate, insert/replace blank page,
-  "Add Blank Pages Automatically"
-- Layout/Binding: Booklet, Saddle Stitch, Perfect Binding, Signature Imposition (4/8/16/24/32/custom)
-- Book Size & Paper Size (A4/A5/A6/B5/Letter/Custom, A4/A3/A2/F4/SRA3/Custom) + orientasi
-- Margin, Bleed, Safe Area, Gutter + toggle Crop Mark/Bleed/Safe Area/Fold Mark/Center Line
-- Creep Compensation (auto/manual berdasarkan ketebalan kertas)
-- Cover Generator (front/back/spine terpisah) dengan perhitungan lebar cover otomatis
-- Preview real-time: Single/Spread/Grid view, zoom in/out, fit to screen, drag pan, ruler, fullscreen
-- Export: pilihan format & kualitas, opsi crop mark/bleed/registration/compress/embed font,
-  generate PDF siap cetak, preview hasil, dan download
+## Fitur
 
-## Algoritma Imposition (inti)
+### Yang berfungsi penuh
+
+- **Upload PDF & analisis otomatis** — jumlah halaman, ukuran halaman per halaman, ukuran file.
+  Render thumbnail berjalan bertahap dengan progress dan tidak membekukan tab; di atas
+  `MAX_THUMBNAIL_PAGES` (400) halaman tetap masuk ke imposition, hanya preview-nya yang jadi
+  placeholder bernomor. Upload dibatasi 150 MB.
+- **Page Management** — drag & drop reorder, rotate 90°, delete, duplicate, insert blank,
+  replace dari nomor halaman lain atau jadi blank. Tombol **Lengkapi N halaman** menambahkan
+  halaman kosong di akhir sampai pas dengan ukuran signature — kalau tidak ditekan pun engine
+  tetap mem-padding secara virtual, jadi ini hanya untuk kasus file-nya sendiri yang harus genap.
+- **Layout / Binding** — Booklet, Saddle Stitch, Perfect Binding, Signature Imposition
+  (4/8/16/24/32/custom).
+- **Book Size & Paper Size** — A4/A5/A6/B5/Letter + A4/A3/A2/F4/SRA3, semua bisa Custom,
+  plus orientasi (auto/portrait/landscape).
+- **Bleed, Safe Area, Gutter** dan toggle **Crop Mark / Bleed Area / Safe Area / Fold Mark /
+  Center Line / Registration Mark** — keenamnya benar-benar digambar ke PDF, dan preview
+  menunjukkan apa yang akan tercetak.
+- **Creep Compensation** — auto (dari ketebalan kertas) atau manual, dihitung **per signature**
+  karena tiap signature dilipat sendiri.
+- **Cover Generator** — back | spine | front dalam satu lembar, bleed per sisi, crop mark yang
+  otomatis mengecil kalau bleed nol. Lebar spine bisa diisi manual atau **dihitung otomatis**
+  (`lembar × ketebalan kertas`, dikali 0,9 untuk compress lem perfect binding) dari
+  *Print Settings → ketebalan kertas* — tetap estimasi, bukan pengganti kaliper di kertas
+  cetak sebenarnya.
+- **Preview** — mode Spread (navigator sheet + front/back) dan Grid, zoom, fit to screen, drag
+  pan, ruler mm, fullscreen.
+- **Export** — tiga format nyata (lihat bawah), `compress` nyata, preview hasil di iframe, unduh.
+
+### Tiga format export — sekarang beda, dulu cuma label
+
+| Format | Isi file |
+|---|---|
+| **PDF Print Ready** | Semua lembar + marks + bleed, siap kirim ke mesin cetak |
+| **PDF Preview** | Tanpa marks, artwork pas di trim (bukan bleed) — buat approval klien |
+| **PDF Per Signature** | Sama seperti print-ready + **1 halaman pembatas bertuliskan nomor signature, rentang halaman, dan jumlah lembar** di awal tiap signature, agar bisa dipecah manual per signature. Ada opsi **satu file per signature dibungkus ZIP** untuk mesin cetak yang menerima tiap form sebagai berkas sendiri; pemisahnya memakai rencana lembar yang sama, dan kalau jumlah halaman hasilnya tidak cocok dengan rencana, ZIP dibatalkan dan file tetap utuh (tidak pernah menebak titik potong) |
+
+`Compress PDF (object streams)` mengaktifkan `useObjectStreams` pada saat save (terukur pada contoh 16 halaman
+bermarks: 15.871 B vs 18.596 B, hemat ±15%).
+
+Opsi `quality` (Standard/High/Print) dan `embedFonts` **sudah dihapus** dari UI: keduanya tidak
+punya efek pada mesin. Yang satu tidak bisa disediakan jujur oleh `pdf-lib` di browser, yang
+lain tidak berarti apa-apa karena artwork masuk sebagai form XObject (font sudah ikut sumbernya).
+
+## Batas yang perlu diketahui (bukan bug, tapi perlu tahu)
+
+- **Perfect binding** kini duplex (2 halaman depan + 2 halaman belakang per lembar); buku 10
+  halaman = 5 sisi cetak. Kalau percetakan Anda memang menata perfect binding dari lembar
+  satu-sisi, matikan duplex di driver — filenya sudah berurutan benar.
+- Halaman sumber yang **lebih besar** dari trim di-fit ke bleed box; yang lebih kecil di-fit ke
+  trim. Skala selalu seragam (rasio tidak pernah dilanggar), jadi kalau ukuran halaman sumber
+  tidak sama dengan ukuran buku, hasilmu bisa berbingkai putih. Validator memberi *warning* untuk
+  ini, bukan error.
+- Ukuran halaman sumber yang tidak seragam: didukung, tapi setiap halaman boleh punya skala
+  berbeda (ada warning di panel Export).
+- Tidak ada color management / soft proofing; semua warna adalah RGB `pdf-lib`, bukan CMYK.
+
+## Rumus Imposition (inti)
 
 Contoh booklet 16 halaman menghasilkan urutan lembar:
 
@@ -80,5 +149,90 @@ backLeft   = 2i + 2
 backRight  = N - 2i - 1
 ```
 
-Lihat `src/lib/imposition.ts` untuk implementasi lengkap termasuk signature splitting dan
-perfect binding.
+Padding selalu **virtual**: slot tambahan tidak menjadi `PageInfo`, tidak menggeser halaman user,
+dan dirender sebagai halaman kosong.
+
+Perfect binding memakai pola `front = 4i+1 | 4i+2`, `back = 4i+3 | 4i+4` (lembar ditumpuk, bukan
+dilipat). Semua binding memakai target kelipatan 4 halaman per lembar fisik.
+
+Implementasi + penjelasannya ada di `src/lib/imposition.ts`; invariannya ("setiap halaman asli
+muncul tepat satu kali") dikunci oleh test di `src/lib/imposition.test.ts` dan
+`src/lib/geometry.test.ts` untuk semua binding dan panjang 1–40.
+
+## Development
+
+```bash
+npm install
+npm run dev         # vite dev server
+npm run typecheck   # tsc --noEmit
+npm test            # vitest run — src/lib di Node, komponen di jsdom
+npm run build       # typecheck && vite build  -> dist/index.html
+npm run preview     # serve hasil build
+```
+
+Build menghasilkan **satu file** `dist/index.html` (~3,49 MB, ±902 KB gzip) karena
+`vite-plugin-singlefile` meng-inline JS, CSS, dan worker pdf.js. Worker di-inline sebagai string
+lalu dijadikan Blob URL saat runtime supaya tetap jalan di mode single-file.
+
+`typecheck` sengaja dijalankan lebih dulu oleh `build`: Vite hanya membuang annotation tipe, tidak
+memeriksanya, jadi tanpa ini repo bisa "build sukses" dalam keadaan rusak tipe.
+
+Node **&ge; 22.13** diperlukan (`engines` di package.json mengikuti batas `pdfjs-dist@6`; Vite 7
+sendiri minta ^20.19 || &ge;22.12). Semua dependensi dipin presisi — tanpa rentang versi yang
+bisa berubah di bawah kaki sendiri.
+
+Test dibagi dua lingkungan lewat pragma per berkas: `src/lib/*.test.ts` jalan di Node murni
+(engine geometri/imposition/export tidak butuh DOM), sedangkan `*.test.tsx` pakai
+`// @vitest-environment jsdom`. Komponen yang diuji selalu lewat `ProjectProvider` asli
+(`src/test/harness.tsx`, memakai jalur `HYDRATE` yang sama dengan resume autosave), jadi
+yang dites adalah aplikasi, bukan tiruan state-nya.
+
+CI menolak kalau: typecheck gagal, salah satu test gagal, `npm audit --omit=dev` menemukan
+high, atau gzip `dist/index.html` lewat dari 1.1 MB (pagar supaya dependensi baru tidak
+senyap-senyap menggembungkan berkas yang di-download user). Dependabot menaikkan patch/minor
+npm tiap Senin dalam satu PR gabungan, dan actions per bulan.
+
+### Deploy (Cloudflare)
+
+```bash
+npm run deploy      # build lalu npx wrangler deploy
+
+# cek konfigurasi & isi dist tanpa mengunggah apa pun (tidak butuh login)
+npx --yes wrangler@4 deploy --dry-run --outdir /tmp/wrangler-dry
+```
+
+`wrangler` tidak dipasang sebagai dependency; `npx` akan mengambilnya. Pin versinya di
+`devDependencies` kalau Anda butuh build yang reproducible. `wrangler.json` menyajikan `dist/`
+sebagai static assets.
+
+### Menaikkan pdf.js
+
+`pdfjs-dist` dipin ke **6.2.108**. Versi itu adalah rilis pertama yang menambal
+CVE-2026-16633 (JavaScript di dalam PDF bisa dieksekusi saat file dibuka — dan dokumen buatan
+orang lain adalah input utama aplikasi ini). pdf.js 6 menghapus `PDFScriptingManager` dari core,
+jadi tidak ada lagi `enableScripting` untuk dimatikan: kemampuannya memang hilang.
+
+Catatan kalau Anda turun ke 5.x atau naik major lagi:
+- jangan pernah pakai `npm audit fix --force` untuk masalah ini (dia menawarkan *downgrade* ke
+  5.5.207, yang tidak ditambal, dan memaksa `vite-plugin-singlefile` mundur ke 0.9.0);
+- kalau terpaksa stay di 5.x, wajib `enableScripting: false` di `getDocument` **dan** CSP
+  `script-src` yang ketat — lihat komentar di `src/lib/pdfRender.ts`;
+- pdf.js 6 memindahkan `destroy()` dari document ke loading task (`pdfRender.ts` sudah mengikuti).
+
+## Keamanan
+
+- Semua parsing terjadi di perangkat user; tidak ada endpoint yang bisa disalahgunakan.
+- PDF yang di-render bisa jadi berbahaya — karena itu dependency parser-nya dipin dan
+  `npm audit --omit=dev --audit-level=high` dijaga di CI (`.github/workflows/ci.yml`).
+- Kalau aplikasi ini di-host untuk publik, tambahkan CSP di `index.html`. Dengan
+  `vite-plugin-singlefile` itu berarti butuh hash/nonce, atau melepaskan plugin tersebut supaya
+  JS/CSS menjadi file terpisah (sekalian memangkas ukuran HTML awal).
+- `npm audit --omit=dev` bersih. `npm audit` masih menampilkan 3 high **di rantai build saja**
+  (`braces` → `micromatch` → `vite-plugin-singlefile`); tidak ada patch non-breaking, dan tidak ada
+  satu byte pun dari ketiganya yang masuk ke `dist/`. Melepas `vite-plugin-singlefile` akan
+  menghapusnya sekalian — pilihan sadar kalau Anda lebih suka HTML kecil + CSP ketat daripada
+  satu file portabel.
+
+## Lisensi
+
+MIT — lihat [LICENSE](./LICENSE).

@@ -1,13 +1,16 @@
 import { useProject } from "../../../state/ProjectContext";
 import { PanelSection, Field, NumberInput, Checkbox, Select } from "./PanelShell";
 import { computeCreepShiftMm, planImposition } from "../../../lib/imposition";
+import { readNumberInput } from "../../../lib/paperSizes";
 
 export default function PrintSettingsPanel() {
   const { state, dispatch } = useProject();
 
   const plan = planImposition(state.pages.length, state.binding, state.signatureSize, state.bindingDirection);
-  const totalSheets = Math.max(1, plan.sheets.length);
-  const estimatedCreep = computeCreepShiftMm(1, totalSheets, state.creep.paperThicknessMm, state.creep.mode, state.creep.manualAmountMm);
+  // Creep is scoped to a single signature: the outermost sheet of the deepest
+  // signature is the worst case, not the outermost sheet of the whole run.
+  const deepestSignature = Math.max(1, ...Object.values(plan.signatureSheetCounts));
+  const estimatedCreep = computeCreepShiftMm(1, deepestSignature, state.creep.paperThicknessMm, state.creep.mode, state.creep.manualAmountMm);
 
   return (
     <div className="settings-panel flex max-h-[46vh] h-auto w-full shrink-0 flex-col overflow-y-auto border-t md:max-h-none md:h-full md:w-[300px] lg:w-[340px] xl:w-[360px] md:border-t-0 md:border-l border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -29,7 +32,7 @@ export default function PrintSettingsPanel() {
             max={10}
             step={0.5}
             value={state.bleedMm}
-            onChange={(e) => dispatch({ type: "SET_BLEED", value: Number(e.target.value) })}
+            onChange={(e) => dispatch({ type: "SET_BLEED", value: readNumberInput(e.target.value, { fallback: state.bleedMm, min: 0, max: 10 }) })}
             className="w-full accent-indigo-600"
           />
         </Field>
@@ -40,7 +43,7 @@ export default function PrintSettingsPanel() {
             max={20}
             step={0.5}
             value={state.safeAreaMm}
-            onChange={(e) => dispatch({ type: "SET_SAFE_AREA", value: Number(e.target.value) })}
+            onChange={(e) => dispatch({ type: "SET_SAFE_AREA", value: readNumberInput(e.target.value, { fallback: state.safeAreaMm, min: 0, max: 20 }) })}
             className="w-full accent-indigo-600"
           />
         </Field>
@@ -51,7 +54,7 @@ export default function PrintSettingsPanel() {
             max={50}
             step={1}
             value={state.gutterMm}
-            onChange={(e) => dispatch({ type: "SET_GUTTER", value: Number(e.target.value) })}
+            onChange={(e) => dispatch({ type: "SET_GUTTER", value: readNumberInput(e.target.value, { fallback: state.gutterMm, min: 0, max: 50 }) })}
             className="w-full accent-indigo-600"
           />
         </Field>
@@ -83,6 +86,11 @@ export default function PrintSettingsPanel() {
           checked={state.marks.showCenterLine}
           onChange={(v) => dispatch({ type: "SET_MARKS", marks: { showCenterLine: v } })}
         />
+        <Checkbox
+          label="Show Registration Marks"
+          checked={state.marks.showRegistrationMarks}
+          onChange={(v) => dispatch({ type: "SET_MARKS", marks: { showRegistrationMarks: v } })}
+        />
       </PanelSection>
 
       <PanelSection title="Creep Compensation">
@@ -91,7 +99,7 @@ export default function PrintSettingsPanel() {
             step={0.01}
             min={0}
             value={state.creep.paperThicknessMm}
-            onChange={(e) => dispatch({ type: "SET_CREEP", creep: { paperThicknessMm: Number(e.target.value) } })}
+            onChange={(e) => dispatch({ type: "SET_CREEP", creep: { paperThicknessMm: readNumberInput(e.target.value, { fallback: state.creep.paperThicknessMm, min: 0, max: 1 }) } })}
           />
         </Field>
         <Field label="Creep Amount">
@@ -108,12 +116,12 @@ export default function PrintSettingsPanel() {
             <NumberInput
               step={0.05}
               value={state.creep.manualAmountMm}
-              onChange={(e) => dispatch({ type: "SET_CREEP", creep: { manualAmountMm: Number(e.target.value) } })}
+              onChange={(e) => dispatch({ type: "SET_CREEP", creep: { manualAmountMm: readNumberInput(e.target.value, { fallback: state.creep.manualAmountMm, min: 0, max: 20 }) } })}
             />
           </Field>
         )}
         <div className="rounded-lg bg-violet-50 p-3 text-xs text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
-          Estimasi pergeseran halaman terdalam: <b>{estimatedCreep.toFixed(2)} mm</b> dari {totalSheets} lembar
+          Estimasi pergeseran maksimum (sheet terluar): <b>{estimatedCreep.toFixed(2)} mm</b> pada signature {deepestSignature} lembar
           bertumpuk.
         </div>
       </PanelSection>

@@ -1,9 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BookPrintLayout</title>
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="BookPrint Layout — layout, imposition, dan persiapan PDF buku siap cetak. Berjalan 100% di browser, file tidak pernah diunggah ke server."
+    />
+    <title>BookPrint Layout — Book Imposition &amp; Print Layout</title>
+    <script>
+      // Applied before first paint so a dark-mode reload never flashes white.
+      try {
+        var t = localStorage.getItem("bookprint-theme");
+        if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

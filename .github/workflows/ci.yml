@@ -11,7 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # pdfjs-dist@6 declares engines >=22.13; keep CI on a line it supports.
+      # 22.x resolves to >=22.22.2, the floor jsdom@30 needs (pdfjs@6 only wants 22.13).
+      # Keep this on a line that satisfies package.json 'engines.node' or the component
+      # tests fail to load instead of being skipped.
       - uses: actions/setup-node@v7
         with:
           node-version: 22

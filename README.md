@@ -177,9 +177,13 @@ lalu dijadikan Blob URL saat runtime supaya tetap jalan di mode single-file.
 `typecheck` sengaja dijalankan lebih dulu oleh `build`: Vite hanya membuang annotation tipe, tidak
 memeriksanya, jadi tanpa ini repo bisa "build sukses" dalam keadaan rusak tipe.
 
-Node **&ge; 22.13** diperlukan (`engines` di package.json mengikuti batas `pdfjs-dist@6`; Vite 7
-sendiri minta ^20.19 || &ge;22.12). Semua dependensi dipin presisi — tanpa rentang versi yang
-bisa berubah di bawah kaki sendiri.
+Node **22.22.2 ke atas** (atau 24.15+/26+) diperlukan. `engines` di package.json menyalin rentang
+`jsdom@30`, yang paling mengikat di antara dependensi — `pdfjs-dist@6` hanya minta &ge;22.13 dan
+Vite 7 minta ^20.19 || &ge;22.12. Batas ditulis seketat itu supaya salah versi Node kelihatan waktu
+`npm ci`, bukan sebagai empat berkas tes yang diam-diam tidak jalan.
+
+Sebagian besar dependensi dipin presisi; `lucide-react`, `react-hot-toast`, dan `pdf-lib` memakai
+rentang `^` — `package-lock.json` yang mengunci versinya, jadi `npm ci` tetap replikabel.
 
 Test dibagi dua lingkungan lewat pragma per berkas: `src/lib/*.test.ts` jalan di Node murni
 (engine geometri/imposition/export tidak butuh DOM), sedangkan `*.test.tsx` pakai

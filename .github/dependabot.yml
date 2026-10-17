@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # Runtime deps get the tightest attention: pdfjs-dist in particular is the
+  # one package in this app that parses untrusted files from disk.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: fix(deps)
+    groups:
+      patch-and-minor:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+
+  # The verify pipeline itself: actions/checkout & setup-node pin major tags.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore(ci)

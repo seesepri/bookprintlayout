@@ -31,6 +31,20 @@ jobs:
       - name: Build
         run: npm run build
 
+      # A single-file build has no dependency budget of its own, so the size
+      # that users actually download is the gate. 1.1 MB keeps ~200 kB headroom.
+      - name: Bundle size guard
+        run: |
+          size=$(gzip -c dist/index.html | wc -c)
+          echo "dist/index.html gzip: $size bytes"
+          if [ "$size" -gt 1126400 ]; then
+            echo "::error::gzip bundle melewati 1.1 MB — periksa dependensi baru"
+            exit 1
+          fi
+
+      - name: Deploy config validates (dry run, nothing uploaded)
+        run: npx --yes wrangler@4 deploy --dry-run --outdir /tmp/wrangler-dry
+
       - uses: actions/upload-artifact@v4
         with:
           name: dist

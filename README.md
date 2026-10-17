@@ -165,22 +165,40 @@ muncul tepat satu kali") dikunci oleh test di `src/lib/imposition.test.ts` dan
 npm install
 npm run dev         # vite dev server
 npm run typecheck   # tsc --noEmit
-npm test            # vitest run (murni Node, tanpa DOM)
+npm test            # vitest run — src/lib di Node, komponen di jsdom
 npm run build       # typecheck && vite build  -> dist/index.html
 npm run preview     # serve hasil build
 ```
 
-Build menghasilkan **satu file** `dist/index.html` (~3.4 MB, ±869 KB gzip) karena
+Build menghasilkan **satu file** `dist/index.html` (~3,49 MB, ±902 KB gzip) karena
 `vite-plugin-singlefile` meng-inline JS, CSS, dan worker pdf.js. Worker di-inline sebagai string
 lalu dijadikan Blob URL saat runtime supaya tetap jalan di mode single-file.
 
 `typecheck` sengaja dijalankan lebih dulu oleh `build`: Vite hanya membuang annotation tipe, tidak
 memeriksanya, jadi tanpa ini repo bisa "build sukses" dalam keadaan rusak tipe.
 
+Node **&ge; 22.13** diperlukan (`engines` di package.json mengikuti batas `pdfjs-dist@6`; Vite 7
+sendiri minta ^20.19 || &ge;22.12). Semua dependensi dipin presisi — tanpa rentang versi yang
+bisa berubah di bawah kaki sendiri.
+
+Test dibagi dua lingkungan lewat pragma per berkas: `src/lib/*.test.ts` jalan di Node murni
+(engine geometri/imposition/export tidak butuh DOM), sedangkan `*.test.tsx` pakai
+`// @vitest-environment jsdom`. Komponen yang diuji selalu lewat `ProjectProvider` asli
+(`src/test/harness.tsx`, memakai jalur `HYDRATE` yang sama dengan resume autosave), jadi
+yang dites adalah aplikasi, bukan tiruan state-nya.
+
+CI menolak kalau: typecheck gagal, salah satu test gagal, `npm audit --omit=dev` menemukan
+high, atau gzip `dist/index.html` lewat dari 1.1 MB (pagar supaya dependensi baru tidak
+senyap-senyap menggembungkan berkas yang di-download user). Dependabot menaikkan patch/minor
+npm tiap Senin dalam satu PR gabungan, dan actions per bulan.
+
 ### Deploy (Cloudflare)
 
 ```bash
 npm run deploy      # build lalu npx wrangler deploy
+
+# cek konfigurasi & isi dist tanpa mengunggah apa pun (tidak butuh login)
+npx --yes wrangler@4 deploy --dry-run --outdir /tmp/wrangler-dry
 ```
 
 `wrangler` tidak dipasang sebagai dependency; `npx` akan mengambilnya. Pin versinya di

@@ -20,6 +20,7 @@ export default defineConfig({
     // The pure modules under src/lib are the expensive ones to get wrong, and
     // they need no DOM: environment "node" keeps the suite dependency-light.
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/test/setup.ts"],
   },
 });

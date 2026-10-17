@@ -65,13 +65,3 @@ export function snapToStep(value: number, step = 0.1): number {
   return Number((Math.round(value / step) * step).toFixed(6));
 }
 
-export function formatMm(v: number) {
-  return `${v.toFixed(1)} mm`;
-}
-
-export function bytesToSize(bytes: number) {
-  if (!bytes) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
-}

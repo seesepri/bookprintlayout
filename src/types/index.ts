@@ -58,6 +58,9 @@ export interface CoverSettings {
   includeCropMarks: boolean;
 }
 
+/** Boolean toggles inside `ExportSettings`, safe to patch by key. */
+export type BooleanExportKey = "includeCropMarks" | "includeBleed" | "includeRegistration" | "compress";
+
 export interface ExportSettings {
   format: ExportFormat;
   includeCropMarks: boolean;

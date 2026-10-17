@@ -5,6 +5,9 @@ import { Checkbox } from "../panels/PanelShell";
 import { buildCoverPdf, fileToBytes, bytesToBlob } from "../../../lib/pdfEngine";
 import { readNumberInput } from "../../../lib/paperSizes";
 import toast from "react-hot-toast";
+import type { CoverSettings } from "../../../types";
+
+type CoverFileKey = "frontFile" | "backFile" | "spineFile";
 
 export default function CoverView() {
   const { state, dispatch, activeBookSize } = useProject();
@@ -24,11 +27,10 @@ export default function CoverView() {
   const totalCoverHeight = activeBookSize.height;
   const previewAspectRatio = `${totalCoverWidth + state.cover.bleedMm * 2} / ${totalCoverHeight + state.cover.bleedMm * 2}`;
 
-  const setFile = (key: "frontFile" | "backFile" | "spineFile") => (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0] ?? null;
-    dispatch({ type: "SET_COVER", cover: { [key]: file } as any });
+  const setFile = (key: CoverFileKey) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const patch: Partial<CoverSettings> = {};
+    patch[key] = e.target.files?.[0] ?? null;
+    dispatch({ type: "SET_COVER", cover: patch });
   };
 
   const generateCover = async () => {

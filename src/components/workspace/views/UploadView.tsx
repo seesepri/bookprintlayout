@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { UploadCloud, FileText, CheckCircle2 } from "lucide-react";
 import { useProject, useProjectActions } from "../../../state/ProjectContext";
 import { handleFileUpload } from "../../../lib/uploadHandler";
-import { bytesToSize } from "../../../lib/paperSizes";
+import { bytesToSize } from "../../../utils/format";
 import toast from "react-hot-toast";
 
 export default function UploadView() {

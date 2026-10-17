@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { DownloadCloud, Loader2, FileCheck2, Printer } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
-import { ExportFormat } from "../../../types";
+import type { BooleanExportKey, ExportFormat, ExportSettings } from "../../../types";
 import { buildImpositionPdf, bytesToBlob } from "../../../lib/pdfEngine";
 import { EXPORT_SUFFIX, resolveExportOptions } from "../../../lib/exportOptions";
 import toast from "react-hot-toast";
@@ -25,6 +25,12 @@ export default function ExportView() {
     // "Generate" click leaked another copy of the PDF for the tab's lifetime.
     return () => URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
+
+  const setFlag = (key: BooleanExportKey, value: boolean) => {
+    const patch: Partial<ExportSettings> = {};
+    patch[key] = value;
+    dispatch({ type: "SET_EXPORT", settings: patch });
+  };
 
   const generate = async () => {
     if (!state.sourceBytes || !state.pages.length) {
@@ -113,13 +119,13 @@ export default function ExportView() {
                   ["includeBleed", "Include Bleed"],
                   ["includeRegistration", "Include Registration Marks"],
                   ["compress", "Compress PDF (object streams)"],
-                ] as const
+                ] as [BooleanExportKey, string][]
               ).map(([key, label]) => (
                 <label key={key} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                   <input
                     type="checkbox"
-                    checked={(state.exportSettings as any)[key]}
-                    onChange={(e) => dispatch({ type: "SET_EXPORT", settings: { [key]: e.target.checked } as any })}
+                    checked={state.exportSettings[key]}
+                    onChange={(e) => setFlag(key, e.target.checked)}
                     className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
                   {label}

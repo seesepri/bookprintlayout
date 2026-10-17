@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useReducer, useRef } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
+import { saveProject } from "../lib/persistence";
 import {
   BindingDirection,
   BindingType,
@@ -78,6 +79,7 @@ export type Action =
   | { type: "SET_GENERATED_COVER"; bytes: Uint8Array | null }
   | { type: "SET_GENERATING"; value: boolean }
   | { type: "RESET_PROJECT" }
+  | { type: "HYDRATE"; state: ProjectState }
   | { type: "UNDO" }
   | { type: "__RESTORE__"; state: ProjectState };
 
@@ -200,6 +202,8 @@ function reducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, isGenerating: action.value };
     case "RESET_PROJECT":
       return { ...initialState };
+    case "HYDRATE":
+      return action.state;
     case "UNDO":
       return state;
     case "__RESTORE__":
@@ -214,28 +218,89 @@ interface ProjectContextValue {
   dispatch: React.Dispatch<Action>;
   activeBookSize: SizeMM;
   activePaperSize: SizeMM;
+  /** Replace the whole project (used by autosave restore). */
+  hydrate: (next: ProjectState) => void;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
+const ProjectDispatchContext = createContext<React.Dispatch<Action> | null>(null);
+
+/** Never pushed to history: presentation-only or machine-output changes. */
+const NON_UNDOABLE = new Set<Action["type"]>([
+  "SET_ZOOM",
+  "SET_GENERATING",
+  "SET_GENERATED",
+  "SET_GENERATED_COVER",
+  "HYDRATE",
+]);
+
+/**
+ * Typing a number field fires one action per keystroke (file picks are not
+ * coalesced: they are discrete choices a user expects to undo on their own). Consecutive actions of
+ * the *same* kind inside COALESCE_MS collapse into a single history entry, so
+ * 50 undo slots means ~50 edits a human would call "a change", not 50 digits.
+ */
+const COALESCE_MS = 800;
+const COALESCABLE = new Set<Action["type"]>([
+  "SET_BLEED",
+  "SET_SAFE_AREA",
+  "SET_GUTTER",
+  "SET_CREEP",
+  "SET_SIGNATURE_SIZE",
+  "SET_BOOK_SIZE_CUSTOM",
+  "SET_PAPER_SIZE_CUSTOM",
+]);
+
+const AUTOSAVE_MS = 800;
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [state, baseDispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(state);
   const historyRef = useRef<ProjectState[]>([]);
+  const lastPush = useRef<{ type: Action["type"]; at: number } | null>(null);
   stateRef.current = state;
   const dispatch = useCallback((action: Action) => {
     if (action.type === "UNDO") {
       const previous = historyRef.current.pop();
+      lastPush.current = null;
       if (previous) baseDispatch({ type: "__RESTORE__", state: previous });
       return;
     }
-    const transient = action.type === "SET_ZOOM" || action.type === "SET_GENERATING" || action.type === "SET_GENERATED" || action.type === "SET_GENERATED_COVER";
-    if (!transient) {
-      historyRef.current.push(stateRef.current);
-      if (historyRef.current.length > 50) historyRef.current.shift();
+    if (!NON_UNDOABLE.has(action.type)) {
+      const now = Date.now();
+      const merge =
+        COALESCABLE.has(action.type) &&
+        lastPush.current?.type === action.type &&
+        now - lastPush.current.at < COALESCE_MS;
+      if (!merge) {
+        historyRef.current.push(stateRef.current);
+        if (historyRef.current.length > 50) historyRef.current.shift();
+      }
+      lastPush.current = { type: action.type, at: now };
     }
     baseDispatch(action);
   }, [baseDispatch]);
+
+  // Debounced autosave. Skipped right after a hydrate so restoring never
+  // writes the same record back for no reason.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) {
+      hydratedRef.current = false;
+      return;
+    }
+    const id = setTimeout(() => {
+      void saveProject(state).catch(() => {
+        /* quota or blocked storage: layout work continues in memory */
+      });
+    }, AUTOSAVE_MS);
+    return () => clearTimeout(id);
+  }, [state]);
+
+  const hydrate = useCallback((next: ProjectState) => {
+    hydratedRef.current = true;
+    baseDispatch({ type: "HYDRATE", state: next });
+  }, []);
 
   const activeBookSize = useMemo(
     () => (state.bookSizePreset === "Custom" ? state.bookSizeCustom : BOOK_SIZE_PRESETS[state.bookSizePreset]),
@@ -247,11 +312,15 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, dispatch, activeBookSize, activePaperSize }),
-    [state, activeBookSize, activePaperSize]
+    () => ({ state, dispatch, activeBookSize, activePaperSize, hydrate }),
+    [state, activeBookSize, activePaperSize, hydrate]
   );
 
-  return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
+  return (
+    <ProjectDispatchContext.Provider value={dispatch}>
+      <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>
+    </ProjectDispatchContext.Provider>
+  );
 }
 
 export function useProject() {
@@ -260,13 +329,28 @@ export function useProject() {
   return ctx;
 }
 
+/**
+ * Dispatch without the state subscription: components that only fire actions
+ * never re-render when the project changes.
+ */
+export function useProjectDispatch(): React.Dispatch<Action> {
+  const dispatch = useContext(ProjectDispatchContext);
+  if (!dispatch) throw new Error("useProjectDispatch must be used within ProjectProvider");
+  return dispatch;
+}
+
+/**
+ * Named navigation actions. Subscribes to the dispatch context only, so these
+ * callers never re-render when project state changes.
+ */
 export function useProjectActions() {
-  const { dispatch } = useProject();
+  const dispatch = useProjectDispatch();
   return useMemo(
     () => ({
       goWorkspace: () => dispatch({ type: "GO_WORKSPACE" }),
       goLanding: () => dispatch({ type: "GO_LANDING" }),
       setView: (view: ViewKey) => dispatch({ type: "SET_VIEW", view }),
+      resetProject: () => dispatch({ type: "RESET_PROJECT" }),
     }),
     [dispatch]
   );

@@ -90,6 +90,33 @@ export async function analyzePdf(
   }
 }
 
+/**
+ * Re-rasterises thumbnails for pages restored from disk. The stored page
+ * list keeps ids, order, rotation and blanks intact — only the preview images
+ * are regenerated, with the same cap and yields as a fresh upload.
+ */
+export async function rebuildThumbnails(bytes: Uint8Array, pages: PageInfo[]): Promise<PageInfo[]> {
+  if (!bytes.length) return pages;
+  const handle = await openPdfForRender(bytes);
+  try {
+    const next = [...pages];
+    const thumbCount = Math.min(next.length, MAX_THUMBNAIL_PAGES);
+    for (let i = 1; i <= thumbCount; i++) {
+      if (next[i - 1].isBlank || next[i - 1].originalIndex === null) continue;
+      const { dataUrl } = await renderPageThumbnail(handle, i, 220);
+      next[i - 1] = { ...next[i - 1], thumbnail: dataUrl };
+      if (i % YIELD_EVERY === 0) await yieldToBrowser();
+    }
+    return next;
+  } catch {
+    // A source file that no longer parses must not block the rest of the
+    // layout: the project (sizes, order, settings) is still usable.
+    return pages;
+  } finally {
+    await handle.destroy();
+  }
+}
+
 export async function handleFileUpload(
   file: File,
   dispatch: (action: { type: "SET_GENERATING"; value: boolean } | { type: "SET_SOURCE"; bytes: Uint8Array; meta: ProjectFileMeta; pages: PageInfo[] }) => void,

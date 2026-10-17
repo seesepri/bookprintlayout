@@ -12,9 +12,8 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
-import { useProjectActions } from "../../state/ProjectContext";
+import { useProjectActions, useProjectDispatch } from "../../state/ProjectContext";
 import { handleFileUpload } from "../../lib/uploadHandler";
-import { useProject } from "../../state/ProjectContext";
 import toast from "react-hot-toast";
 
 const FEATURES = [
@@ -62,7 +61,7 @@ const FEATURES = [
 
 export default function Landing() {
   const { goWorkspace, setView } = useProjectActions();
-  const { dispatch } = useProject();
+  const dispatch = useProjectDispatch();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const onFiles = async (files: FileList | null) => {

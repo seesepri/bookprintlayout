@@ -3,21 +3,37 @@ import { DownloadCloud, Loader2, FileCheck2, Printer } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
 import type { BooleanExportKey, ExportFormat, ExportSettings } from "../../../types";
 import { buildImpositionPdf, bytesToBlob } from "../../../lib/pdfEngine";
+import { splitPdfBySignature, zipFiles } from "../../../lib/pdfSplit";
 import { EXPORT_SUFFIX, resolveExportOptions } from "../../../lib/exportOptions";
 import toast from "react-hot-toast";
 
 const FORMATS: { key: ExportFormat; label: string; desc: string }[] = [
   { key: "print-ready", label: "PDF Print Ready", desc: "Semua lembar imposition lengkap dengan marks." },
   { key: "preview", label: "PDF Preview", desc: "Tanpa marks, artwork pas di trim — buat approval klien." },
-  { key: "per-signature", label: "PDF Per Signature", desc: "Halaman pembatas otomatis tiap awal signature, dalam satu file." },
+  { key: "per-signature", label: "PDF Per Signature", desc: "Pembatas tiap awal signature dalam satu file — atau pisah jadi ZIP di bawah." },
 ];
+
+function downloadBytes(bytes: Uint8Array, filename: string, type = "application/pdf") {
+  const url = URL.createObjectURL(new Blob([bytes as unknown as BlobPart], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function ExportView() {
   const { state, dispatch, activeBookSize, activePaperSize } = useProject();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // UI-only: how the per-signature result is packaged, not part of the project.
+  const [zipPerSignature, setZipPerSignature] = useState(false);
 
   const resolved = resolveExportOptions(state, activeBookSize, activePaperSize);
   const { plan, paper, validation } = resolved;
+
+  /** A booklet is one folded form by definition: there is nothing to split. */
+  const canSplit =
+    state.exportSettings.format === "per-signature" && plan.signatures.length > 1 && zipPerSignature;
 
   useEffect(() => {
     if (!previewUrl) return;
@@ -57,9 +73,24 @@ export default function ExportView() {
         gutterMm: resolved.gutterMm,
         creep: state.creep,
         marks: resolved.marks,
-        mode: state.exportSettings.format,
+        // The split files are cut from the mark-complete sheet stack; the
+        // divider pages of `per-signature` mode would only shift page indices.
+        mode: canSplit ? "print-ready" : state.exportSettings.format,
         compress: resolved.compress,
       });
+
+      const base = state.meta.fileName.replace(/\.pdf$/i, "") || "bookprint";
+      if (canSplit) {
+        const files = await splitPdfBySignature(bytes, plan.sheets, state.binding !== "perfect-binding");
+        if (files && files.length) {
+          const zip = zipFiles(files.map((file, i) => ({ name: `${base}_sig${i + 1}.pdf`, bytes: file })));
+          downloadBytes(zip, `${base}_signatures.zip`, "application/zip");
+          toast.success(`${files.length} file signature dibungkus jadi ZIP.`, { id });
+          return;
+        }
+        toast.error("Hasil build tidak cocok dengan pemisahan signature — diekspor sebagai satu file.", { id });
+      }
+
       dispatch({ type: "SET_GENERATED", bytes });
       setPreviewUrl(URL.createObjectURL(bytesToBlob(bytes)));
       toast.success("PDF siap cetak berhasil dibuat!", { id });
@@ -73,14 +104,8 @@ export default function ExportView() {
 
   const download = () => {
     if (!state.generatedPdf) return;
-    const blob = bytesToBlob(state.generatedPdf);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
     const base = state.meta.fileName.replace(/\.pdf$/i, "") || "bookprint";
-    a.download = `${base}_${EXPORT_SUFFIX[state.exportSettings.format] ?? "imposed"}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBytes(state.generatedPdf, `${base}_${EXPORT_SUFFIX[state.exportSettings.format] ?? "imposed"}.pdf`);
   };
 
   return (
@@ -111,7 +136,32 @@ export default function ExportView() {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-400">Opsi Tambahan</h3>
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-400">Per Signature</h3>
+            {plan.signatures.length > 1 ? (
+              <label className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={zipPerSignature}
+                  onChange={(e) => setZipPerSignature(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>
+                  <span className="font-semibold">Satu file PDF per signature, dibungkus ZIP</span>
+                  <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                    {plan.signatures.length} signature · tanpa halaman pembatas, langsung terunduh sebagai{" "}
+                    {state.meta.fileName.replace(/\.pdf$/i, "") || "bookprint"}_signatures.zip
+                  </span>
+                </span>
+              </label>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Buku ini hanya menghasilkan satu signature, jadi tidak ada yang bisa dipisah — ekspor
+                tetap satu file dengan halaman pembatas.
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="grid grid-cols-2 gap-2.5">
               {(
                 [

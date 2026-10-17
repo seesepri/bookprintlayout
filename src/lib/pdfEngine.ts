@@ -210,14 +210,20 @@ function addDividerPage(
  *    behind the wrong partners and silently ruin the whole run.
  *  - PrintScaling None: never "fit to page" a prepress sheet.
  */
-function applyPrintIntent(outDoc: PDFDocument, duplex: boolean) {
+/**
+ * Catalog-level print hints. Exported so split per-signature files can
+ * carry the same duplex setting as the combined sheet.
+ */
+export function applyPrintIntent(outDoc: PDFDocument, duplex: boolean) {
   const prefs = PDFDict.withContext(outDoc.context);
   prefs.set(PDFName.of("PrintScaling"), PDFName.of("None"));
   if (duplex) prefs.set(PDFName.of("Duplex"), PDFName.of("DuplexFlipShortEdge"));
   outDoc.catalog.set(PDFName.of("ViewerPreferences"), prefs);
 }
 
-const sheetSideIsEmpty = (side: { left: number | null; right: number | null }) =>
+/** Exported for the signature splitter: it must count pages with exactly the
+ * same rule the engine uses when it decides to skip a back side. */
+export const sheetSideIsEmpty = (side: { left: number | null; right: number | null }) =>
   side.left === null && side.right === null;
 
 export async function buildImpositionPdf(params: BuildImpositionParams): Promise<Uint8Array> {

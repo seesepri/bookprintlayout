@@ -4,6 +4,7 @@ import { useProject } from "../../../state/ProjectContext";
 import { Checkbox } from "../panels/PanelShell";
 import { buildCoverPdf, fileToBytes, bytesToBlob } from "../../../lib/pdfEngine";
 import { readNumberInput } from "../../../lib/paperSizes";
+import { estimateSpineWidthMm, leavesFor } from "../../../lib/spine";
 import toast from "react-hot-toast";
 import type { CoverSettings } from "../../../types";
 
@@ -26,6 +27,18 @@ export default function CoverView() {
   );
   const totalCoverHeight = activeBookSize.height;
   const previewAspectRatio = `${totalCoverWidth + state.cover.bleedMm * 2} / ${totalCoverHeight + state.cover.bleedMm * 2}`;
+
+  // Spine width used to be a number the user had to bring from elsewhere.
+  // The stack height is derivable: leaves x caliper, with the glued end of a
+  // perfect-bound book compressed a little.
+  const estimatedSpineMm = estimateSpineWidthMm({
+    pageCount: state.pages.length,
+    paperThicknessMm: state.creep.paperThicknessMm,
+    compress: state.binding === "perfect-binding" ? 0.9 : 1,
+  });
+
+  const useEstimatedSpine = () =>
+    dispatch({ type: "SET_COVER", cover: { spineWidthMm: estimatedSpineMm } });
 
   const setFile = (key: CoverFileKey) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const patch: Partial<CoverSettings> = {};
@@ -110,13 +123,27 @@ export default function CoverView() {
                   onChange={(e) => dispatch({ type: "SET_COVER", cover: { spineWidthMm: readNumberInput(e.target.value, { fallback: state.cover.spineWidthMm, min: 0, max: 200 }) } })}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 />
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    Estimasi {estimatedSpineMm} mm dari {leavesFor(state.pages.length)} lembar ×{" "}
+                    {state.creep.paperThicknessMm} mm
+                  </span>
+                  <button
+                    type="button"
+                    onClick={useEstimatedSpine}
+                    disabled={estimatedSpineMm <= 0 || Math.abs(estimatedSpineMm - state.cover.spineWidthMm) < 0.05}
+                    className="rounded-md border border-indigo-200 px-2 py-0.5 font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-indigo-900/60 dark:hover:bg-indigo-950/40"
+                  >
+                    Pakai
+                  </button>
+                </div>
               </Field>
               <Field label="Bleed (mm)">
                 <input
                   type="number"
                   min={0}
                   value={state.cover.bleedMm}
-                  onChange={(e) => dispatch({ type: "SET_COVER", cover: { bleedMm: Number(e.target.value) } })}
+                  onChange={(e) => dispatch({ type: "SET_COVER", cover: { bleedMm: readNumberInput(e.target.value, { fallback: state.cover.bleedMm, min: 0, max: 50 }) } })}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 />
               </Field>

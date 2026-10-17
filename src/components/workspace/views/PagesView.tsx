@@ -8,25 +8,29 @@ import {
   Repeat,
 } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
-import { PageInfo } from "../../../types";
+import type { PageInfo, SizeMM } from "../../../types";
+import { mmToPt } from "../../../lib/paperSizes";
+import { planImposition } from "../../../lib/imposition";
 import toast from "react-hot-toast";
 
 let blankCounter = 0;
 
-function makeBlankPage(): PageInfo {
+function makeBlankPage(bookSize: SizeMM): PageInfo {
   blankCounter += 1;
   return {
     id: `blank-${Date.now()}-${blankCounter}`,
     originalIndex: null,
     rotation: 0,
     isBlank: true,
-    widthPt: 420,
-    heightPt: 595,
+    // A blank must carry the book's own trim size: a fixed A5 box made the
+    // grid card and any downstream measurement wrong for other book sizes.
+    widthPt: mmToPt(bookSize.width),
+    heightPt: mmToPt(bookSize.height),
   };
 }
 
 export default function PagesView() {
-  const { state, dispatch } = useProject();
+  const { state, dispatch, activeBookSize } = useProject();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<number | null>(null);
   const [replaceValue, setReplaceValue] = useState("");
@@ -56,7 +60,7 @@ export default function PagesView() {
 
   const insertBlank = (idx: number) => {
     const pages = [...state.pages];
-    pages.splice(idx + 1, 0, makeBlankPage());
+    pages.splice(idx + 1, 0, makeBlankPage(activeBookSize));
     updatePages(pages);
   };
 
@@ -69,11 +73,32 @@ export default function PagesView() {
     setDragIndex(null);
   };
 
+  /**
+   * The engine already pads a short run virtually, so a book that is not a
+   * multiple of the signature size still prints. Materialising those blanks is
+   * for the cases where the *file* must be complete: a printer who counts
+   * pages, or a workflow that re-imposes from this PDF.
+   */
+  const paddingCount = () => {
+    const plan = planImposition(state.pages.length, state.binding, state.signatureSize, state.bindingDirection);
+    return Math.max(0, plan.paddedTotal - state.pages.length);
+  };
+
+  const padToSignature = () => {
+    const count = paddingCount();
+    if (!count) {
+      toast.success("Jumlah halaman sudah pas dengan ukuran signature.");
+      return;
+    }
+    updatePages([...state.pages, ...Array.from({ length: count }, () => makeBlankPage(activeBookSize))]);
+    toast.success(`${count} halaman kosong ditambahkan di akhir (total ${state.pages.length + count}).`);
+  };
+
   const applyReplace = () => {
     if (replaceTarget === null) return;
     const pages = [...state.pages];
     if (replaceValue.toLowerCase() === "blank") {
-      pages[replaceTarget] = { ...makeBlankPage(), id: pages[replaceTarget].id };
+      pages[replaceTarget] = { ...makeBlankPage(activeBookSize), id: pages[replaceTarget].id };
     } else {
       const num = Number(replaceValue);
       const src = pages[num - 1];
@@ -108,6 +133,14 @@ export default function PagesView() {
           </p>
         </div>
         <div className="flex gap-2">
+          {paddingCount() > 0 && (
+            <button
+              onClick={padToSignature}
+              className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/60 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
+            >
+              <FilePlus2 className="h-4 w-4" /> Lengkapi {paddingCount()} halaman
+            </button>
+          )}
           <button
             onClick={() => insertBlank(state.pages.length - 1)}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"

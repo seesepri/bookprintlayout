@@ -25,7 +25,8 @@ mengandalkannya**: tidak semua driver/print dialog membaca metadata itu.
 ## Alur Kerja
 
 Upload PDF → Analisis Dokumen → Pilih Jenis Layout → Atur Ukuran Buku & Kertas → Generate
-Imposition → Preview → Export PDF Siap Cetak.
+Imposition → Preview → Export PDF Siap Cetak. Semua langkah di atas tersimpan otomatis
+di browser, jadi tab yang crash atau tidak sengaja di-refresh bisa dilanjutkan.
 
 ## Arsitektur
 
@@ -79,7 +80,9 @@ Node — lihat `src/lib/*.test.ts`.
   `MAX_THUMBNAIL_PAGES` (400) halaman tetap masuk ke imposition, hanya preview-nya yang jadi
   placeholder bernomor. Upload dibatasi 150 MB.
 - **Page Management** — drag & drop reorder, rotate 90°, delete, duplicate, insert blank,
-  replace dari nomor halaman lain atau jadi blank.
+  replace dari nomor halaman lain atau jadi blank. Tombol **Lengkapi N halaman** menambahkan
+  halaman kosong di akhir sampai pas dengan ukuran signature — kalau tidak ditekan pun engine
+  tetap mem-padding secara virtual, jadi ini hanya untuk kasus file-nya sendiri yang harus genap.
 - **Layout / Binding** — Booklet, Saddle Stitch, Perfect Binding, Signature Imposition
   (4/8/16/24/32/custom).
 - **Book Size & Paper Size** — A4/A5/A6/B5/Letter + A4/A3/A2/F4/SRA3, semua bisa Custom,
@@ -90,8 +93,10 @@ Node — lihat `src/lib/*.test.ts`.
 - **Creep Compensation** — auto (dari ketebalan kertas) atau manual, dihitung **per signature**
   karena tiap signature dilipat sendiri.
 - **Cover Generator** — back | spine | front dalam satu lembar, bleed per sisi, crop mark yang
-  otomatis mengecil kalau bleed nol. Lebar spine masih diisi manual (`jumlah halaman × ketebalan`
-  adalah pekerjaan berikutnya).
+  otomatis mengecil kalau bleed nol. Lebar spine bisa diisi manual atau **dihitung otomatis**
+  (`lembar × ketebalan kertas`, dikali 0,9 untuk compress lem perfect binding) dari
+  *Print Settings → ketebalan kertas* — tetap estimasi, bukan pengganti kaliper di kertas
+  cetak sebenarnya.
 - **Preview** — mode Spread (navigator sheet + front/back) dan Grid, zoom, fit to screen, drag
   pan, ruler mm, fullscreen.
 - **Export** — tiga format nyata (lihat bawah), `compress` nyata, preview hasil di iframe, unduh.
@@ -102,7 +107,7 @@ Node — lihat `src/lib/*.test.ts`.
 |---|---|
 | **PDF Print Ready** | Semua lembar + marks + bleed, siap kirim ke mesin cetak |
 | **PDF Preview** | Tanpa marks, artwork pas di trim (bukan bleed) — buat approval klien |
-| **PDF Per Signature** | Sama seperti print-ready + **1 halaman pembatas bertuliskan nomor signature, rentang halaman, dan jumlah lembar** di awal tiap signature, agar bisa dipecah manual per signature |
+| **PDF Per Signature** | Sama seperti print-ready + **1 halaman pembatas bertuliskan nomor signature, rentang halaman, dan jumlah lembar** di awal tiap signature, agar bisa dipecah manual per signature. Ada opsi **satu file per signature dibungkus ZIP** untuk mesin cetak yang menerima tiap form sebagai berkas sendiri; pemisahnya memakai rencana lembar yang sama, dan kalau jumlah halaman hasilnya tidak cocok dengan rencana, ZIP dibatalkan dan file tetap utuh (tidak pernah menebak titik potong) |
 
 `Compress PDF (object streams)` mengaktifkan `useObjectStreams` pada saat save (terukur pada contoh 16 halaman
 bermarks: 15.871 B vs 18.596 B, hemat ±15%).

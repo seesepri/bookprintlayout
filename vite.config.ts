@@ -11,6 +11,22 @@ const __dirname = path.dirname(__filename);
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
+  build: {
+    // Vite 8 bundles with rolldown/oxc, and its default target
+    // "baseline-widely-available" is a *moving* floor: which browsers that label
+    // covers changes when Vite changes. This app gets opened on whatever machine a
+    // print shop happens to have, so pin the target instead of inheriting someone
+    // else's release year. Cost, measured on the single-file output at its real
+    // path (`gzip -c dist/index.html`, same ruler as the CI guard): 910,433 B at
+    // Vite 8's default vs 920,886 B at es2020 — +10,453 B, still 81.8 % of the
+    // 1,126,400 B guard, and only +3,744 B over what Vite 7 shipped.
+    //
+    // Deliberately es2020 and not a browser list: oxc accepts "chrome107,edge107,
+    // firefox104,safari16" without complaining and then lowers *nothing* — the
+    // emitted private-field count stays identical to the default build (221 vs
+    // 220), while es2020 drops it to 119. Only esNNNN actually does the work here.
+    target: "es2020",
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),

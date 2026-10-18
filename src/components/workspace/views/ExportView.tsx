@@ -68,6 +68,7 @@ export default function ExportView() {
         signatureSize: state.signatureSize,
         bookSize: activeBookSize,
         paperSize: paper,
+        grid: resolved.grid,
         bleedMm: resolved.bleedMm,
         safeAreaMm: resolved.safeAreaMm,
         gutterMm: resolved.gutterMm,

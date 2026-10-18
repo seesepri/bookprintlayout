@@ -9,19 +9,11 @@ import {
   degrees,
   rgb,
 } from "pdf-lib";
-import {
-  BindingDirection,
-  BindingType,
-  CreepSettings,
-  ExportFormat,
-  MarksSettings,
-  PageInfo,
-  SheetSide,
-  SizeMM,
-} from "../types";
+import { BindingDirection, BindingType, CreepSettings, ExportFormat, MarksSettings, PageInfo, SizeMM, Sheet } from "../types";
 import type { SignatureRange } from "../types";
 import { mmToPt } from "./paperSizes";
 import { ImpositionPlan, planImposition } from "./imposition";
+import { GridSpec, PAIR_GRID, slotCount } from "./nup";
 import { buildSheetGeometry, fitMarkRun, PagePlacement, SheetGeometry } from "./geometry";
 
 export interface BuildImpositionParams {
@@ -39,6 +31,8 @@ export interface BuildImpositionParams {
   creep?: CreepSettings;
   /** Output profile. Defaults to the full print-ready sheet. */
   mode?: ExportFormat;
+  /** Pages-per-side grid; 2x1 (default) is the classic side-by-side spread. */
+  grid?: GridSpec;
   /** Object-stream compression on save. Defaults to true. */
   compress?: boolean;
 }
@@ -84,13 +78,20 @@ async function embedUsedPages(
  *
  * Exported because "no mark lands off-page" is worth a direct test.
  */
-export function drawCropMarks(page: PDFPage, marks: { x: number; y: number; dx: -1 | 1; dy: -1 | 1 }[], gapPt: number, lenPt: number) {
+export function drawCropMarks(
+  page: PDFPage,
+  marks: { x: number; y: number; dx: -1 | 1; dy: -1 | 0 | 1 }[],
+  gapPt: number,
+  lenPt: number
+) {
   const { width: pageW, height: pageH } = page.getSize();
   for (const mark of marks) {
     const x = mmToPt(mark.x);
     const y = mmToPt(mark.y);
     const runX = fitMarkRun(mark.dx < 0 ? x : pageW - x, gapPt, lenPt);
-    const runY = fitMarkRun(mark.dy < 0 ? y : pageH - y, gapPt, lenPt);
+    // dy === 0 marks are cut-line ticks on an internal grid boundary: there is
+    // no trim edge to run toward, so only the horizontal tick is drawn.
+    const runY = mark.dy === 0 ? null : fitMarkRun(mark.dy < 0 ? y : pageH - y, gapPt, lenPt);
     if (runX) {
       page.drawLine({ start: { x: x + mark.dx * runX.gapPt, y }, end: { x: x + mark.dx * runX.spanPt, y }, thickness: 0.6, color: LINE_COLOR });
     }
@@ -257,7 +258,9 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
     creep,
     mode = "print-ready",
     compress = true,
+    grid = PAIR_GRID,
   } = params;
+  const slotsPerSide = slotCount(grid);
 
   const isPreview = mode === "preview";
   const drawMarks = !isPreview;
@@ -278,7 +281,9 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
   outDoc.setProducer("BookPrint Layout");
   outDoc.setCreator("BookPrint Layout");
   const embeddedByIndex = await embedUsedPages(outDoc, sourceBytes, pages);
-  const plan: ImpositionPlan = planImposition(pages.length, binding, signatureSize, bindingDirection);
+  const plan: ImpositionPlan = planImposition(pages.length, binding, signatureSize, bindingDirection, {
+    slotsPerSide,
+  });
 
   const resolvePage = (pageNumber: number | null) => {
     if (pageNumber === null || pageNumber < 1 || pageNumber > pages.length) return null;
@@ -293,18 +298,26 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
   const isFolded = binding !== "perfect-binding";
   const dividerFont = mode === "per-signature" ? await outDoc.embedFont(StandardFonts.Helvetica) : undefined;
 
-  // Free margin around the imposed spread, used to place printer's marks.
-  const pairWidth = bookSize.width * 2 + (binding === "perfect-binding" ? Math.max(0, gutterMm) : 0);
-  const sideMarginMm = Math.max(0, (paperSize.width - pairWidth) / 2);
-  const topMarginMm = Math.max(0, (paperSize.height - bookSize.height) / 2);
+  // Free margin around the imposed block, used to place printer's marks.
+  const gridCols = Math.max(1, grid.cols);
+  const gridRows = Math.max(1, grid.rows);
+  const blockWidthMm =
+    bookSize.width * gridCols + (binding === "perfect-binding" ? Math.max(0, gutterMm) : 0) * (gridCols - 1);
+  const blockHeightMm = bookSize.height * gridRows;
+  const sideMarginMm = Math.max(0, (paperSize.width - blockWidthMm) / 2);
+  const topMarginMm = Math.max(0, (paperSize.height - blockHeightMm) / 2);
   const regInsetPt = Math.max(3, Math.min(mmToPt(5), Math.min(sideMarginMm, topMarginMm) * 72 / 25.4 - mmToPt(1)));
 
-  type SidePlacements = { left: PagePlacement; right: PagePlacement };
+  const sidePages = (sheet: Sheet, which: "front" | "back"): (number | null)[] => {
+    const slots = which === "front" ? sheet.frontSlots : sheet.backSlots;
+    return slots && slots.length ? slots : [sheet[which].left, sheet[which].right];
+  };
 
-  const drawSide = (geometry: SheetGeometry, placements: SidePlacements, pageNumbers: SheetSide) => {
+  const drawSide = (geometry: SheetGeometry, placements: PagePlacement[], pageNumbers: (number | null)[]) => {
     const page = outDoc.addPage([sheetWidthPt, sheetHeightPt]);
-    drawPlacement(page, placements.left, resolvePage(pageNumbers.left), outputMarks);
-    drawPlacement(page, placements.right, resolvePage(pageNumbers.right), outputMarks);
+    placements.forEach((placement, index) => {
+      drawPlacement(page, placement, resolvePage(pageNumbers[index] ?? null), outputMarks);
+    });
 
     if (outputMarks.showCropMarks) drawCropMarks(page, geometry.cropMarks, mmToPt(CROP_GAP_MM), mmToPt(CROP_LENGTH_MM));
     if (outputMarks.showRegistrationMarks) drawRegistrationMarks(page, sheetWidthPt, sheetHeightPt, regInsetPt);
@@ -353,15 +366,17 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
       marks: outputMarks,
       creep,
       signatureSheetCount: plan.signatureSheetCounts[sheet.signature] ?? 1,
+      grid,
     });
 
-    drawSide(geometry, geometry.front, sheet.front);
+    drawSide(geometry, geometry.frontSlots ?? [geometry.front.left, geometry.front.right], sidePages(sheet, "front"));
 
     // Booklet-style bindings always need the back side (it is the same folded
     // sheet). Perfect binding only when that side actually carries pages, so a
     // short run does not gain a blank sheet.
-    if (isFolded || !sheetSideIsEmpty(sheet.back)) {
-      drawSide(geometry, geometry.back, sheet.back);
+    const backPages = sidePages(sheet, "back");
+    if (isFolded || backPages.some((n) => n !== null)) {
+      drawSide(geometry, geometry.backSlots ?? [geometry.back.left, geometry.back.right], backPages);
     }
   }
 

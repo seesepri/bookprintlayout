@@ -1,6 +1,7 @@
 import { ImpositionValidation, validateImposition } from "./geometry";
 import { ImpositionPlan, planImposition } from "./imposition";
-import { orientedPaperSize } from "./previewHelpers";
+import { orientedPaperSize, resolveSheetLayout } from "./previewHelpers";
+import type { GridReason, GridSpec } from "./nup";
 import { MarksSettings, SizeMM } from "../types";
 import type { ProjectState } from "../state/ProjectContext";
 
@@ -23,6 +24,10 @@ export interface ResolvedExportOptions {
   marks: MarksSettings;
   compress: boolean;
   validation: ImpositionValidation;
+  /** Pages-per-side grid the sheets are laid out on. */
+  grid: GridSpec;
+  slotsPerSide: number;
+  layoutReason: GridReason;
 }
 
 export function resolveExportOptions(
@@ -30,7 +35,6 @@ export function resolveExportOptions(
   bookSize: SizeMM,
   paperSize: SizeMM
 ): ResolvedExportOptions {
-  const plan = planImposition(state.pages.length, state.binding, state.signatureSize, state.bindingDirection);
   const paper = orientedPaperSize(paperSize, state.orientation, bookSize);
 
   const isPreview = state.exportSettings.format === "preview";
@@ -52,7 +56,24 @@ export function resolveExportOptions(
   const safeAreaMm = state.safeAreaMm;
   const gutterMm = state.gutterMm;
 
+  // The grid is chosen from the *print-level* bleed and mark toggles, so the
+  // preview and this export always agree, and an export that drops a guide can
+  // only ever become more conservative.
+  const layout = resolveSheetLayout({
+    paper,
+    bookSize,
+    binding: state.binding,
+    setting: state.pagesPerSide,
+    bleedMm: state.bleedMm,
+    gutterMm: state.gutterMm,
+    showCropMarks: state.marks.showCropMarks,
+  });
+  const plan = planImposition(state.pages.length, state.binding, state.signatureSize, state.bindingDirection, {
+    slotsPerSide: layout.slotsPerSide,
+  });
+
   const validation = validateImposition({
+    grid: layout.grid,
     pages: state.pages,
     sheets: plan.sheets,
     sheetCount: plan.sheets.length,
@@ -77,6 +98,9 @@ export function resolveExportOptions(
     marks,
     compress: state.exportSettings.compress,
     validation,
+    grid: layout.grid,
+    slotsPerSide: layout.slotsPerSide,
+    layoutReason: layout.reason,
   };
 }
 

@@ -4,6 +4,8 @@ import type { SignatureRange } from "../types";
 export interface ImpositionPlan {
   paddedTotal: number;
   sheets: Sheet[];
+  /** Pages per sheet side the plan was built for (2 = the classic spread). */
+  slotsPerSide?: number;
   signatures: SignatureRange[];
   /**
    * Number of sheets inside each signature, keyed by signature index.
@@ -73,21 +75,38 @@ export function computeBookletSheets(
  */
 export function computePerfectBindingSheets(
   totalPages: number,
-  bindingDirection: BindingDirection = "left"
+  bindingDirection: BindingDirection = "left",
+  slotsPerSide = 2
 ): Sheet[] {
-  const padded = padToMultiple(totalPages, 4);
+  const slots = Math.max(2, Math.floor(slotsPerSide));
+  const perSheet = slots * 2;
+  const padded = padToMultiple(totalPages, perSheet);
   const sheets: Sheet[] = [];
 
-  for (let i = 0; i < padded / 4; i++) {
-    const front = orient(
-      { left: toPlacement(4 * i + 1, totalPages, 0), right: toPlacement(4 * i + 2, totalPages, 0) },
-      bindingDirection
-    );
-    const back = orient(
-      { left: toPlacement(4 * i + 3, totalPages, 0), right: toPlacement(4 * i + 4, totalPages, 0) },
-      bindingDirection
-    );
-    sheets.push({ index: i, signature: 1, front, back });
+  // A glued book never folds, so density is free: the front side carries the
+  // next `slots` pages in reading order and duplexing puts the rest on the back.
+  // Slot order is row-major across the grid; for a two-page spread this is the
+  // same left/right pair (plus the same right-to-left mirror) as always.
+  const buildSide = (start: number) => {
+    const raw = Array.from({ length: slots }, (_, k) => toPlacement(start + k, totalPages, 0));
+    return bindingDirection === "right" ? raw.slice().reverse() : raw;
+  };
+
+  for (let i = 0; i < padded / perSheet; i++) {
+    const front = buildSide(perSheet * i + 1);
+    const back = buildSide(perSheet * i + slots + 1);
+    const sheet: Sheet = {
+      index: i,
+      signature: 1,
+      front: { left: front[0] ?? null, right: front[1] ?? null },
+      back: { left: back[0] ?? null, right: back[1] ?? null },
+    };
+    if (slots > 2) {
+      sheet.slotsPerSide = slots;
+      sheet.frontSlots = front;
+      sheet.backSlots = back;
+    }
+    sheets.push(sheet);
   }
 
   return sheets;
@@ -117,16 +136,19 @@ export function planImposition(
   totalPagesRaw: number,
   binding: BindingType,
   signatureSize = 16,
-  bindingDirection: BindingDirection = "left"
+  bindingDirection: BindingDirection = "left",
+  options: { slotsPerSide?: number } = {}
 ): ImpositionPlan {
   const totalPages = Math.max(0, Math.floor(totalPagesRaw));
 
   if (binding === "perfect-binding") {
-    const paddedTotal = padToMultiple(totalPages, 4);
-    const sheets = computePerfectBindingSheets(totalPages, bindingDirection);
+    const slots = Math.max(2, Math.floor(options.slotsPerSide ?? 2));
+    const paddedTotal = padToMultiple(totalPages, slots * 2);
+    const sheets = computePerfectBindingSheets(totalPages, bindingDirection, slots);
     return {
       paddedTotal,
       sheets,
+      slotsPerSide: slots > 2 ? slots : undefined,
       signatures: totalPages ? [{ index: 1, startPage: 1, endPage: totalPages, pageCount: totalPages }] : [],
       signatureSheetCounts: { 1: sheets.length },
     };

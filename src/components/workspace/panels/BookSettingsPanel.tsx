@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useProject } from "../../../state/ProjectContext";
 import { planImposition } from "../../../lib/imposition";
-import { gridFits, gridSheetSize } from "../../../lib/nup";
+import { gridSheetSize } from "../../../lib/nup";
 import { geometryConstants } from "../../../lib/geometry";
 import { orientedPaperSize, resolveSheetLayout } from "../../../lib/previewHelpers";
 import type { PagesPerSideSetting } from "../../../lib/nup";
@@ -48,10 +48,7 @@ export default function BookSettingsPanel() {
   };
   const quadNeed = gridSheetSize(activeBookSize, { cols: 2, rows: 2 }, { ...quadRoom, marksRoomMm: 0 });
   const folded = state.binding !== "perfect-binding";
-  const quadFitsWithMarks = gridFits(paper, activeBookSize, { cols: 2, rows: 2 }, {
-    ...quadRoom,
-    marksRoomMm: geometryConstants.cropGapMm + geometryConstants.cropLengthMm,
-  });
+  const nestedSignature = state.binding === "signature";
   const quadMarksNeed = gridSheetSize(activeBookSize, { cols: 2, rows: 2 }, {
     ...quadRoom,
     marksRoomMm: geometryConstants.cropGapMm + geometryConstants.cropLengthMm,
@@ -129,21 +126,29 @@ export default function BookSettingsPanel() {
             value={state.pagesPerSide}
             onChange={(e) => dispatch({ type: "SET_PAGES_PER_SIDE", value: e.target.value as PagesPerSideSetting })}
           >
-            <option value="auto">Auto — {folded ? "2 per sisi (binding lipatan)" : "4 per sisi kalau muat"}</option>
+            <option value="auto">Auto — {folded ? "2 per sisi (spread)" : "4 per sisi kalau muat"}</option>
             <option value="2">2 per side (side-by-side spread)</option>
-            <option value="4">4 per side (2 × 2 grid){folded ? " — butuh potong tengah" : ""}</option>
+            <option value="4" disabled={nestedSignature}>
+              4 per side (2 × 2 grid){folded ? " — head-to-head" : ""}
+            </option>
           </Select>
-          {folded && (
+          {nestedSignature ? (
             <p className="mt-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
-              Binding lipatan ({state.binding}) sengaja ditahan di 2 per sisi. Empat halaman A5 memang muat di lembar
-              ini, tapi lembar 2×2 baru baca benar kalau dilipat dua arah lalu garis tengahnya dipotong — itu
-              imposition signature, bukan sekadar menumpuk halaman.
-              {quadFitsWithMarks && (
-                <> Ganti binding ke <b>Perfect Binding</b> untuk langsung dapat 4 per sisi di {paper.width}×{paper.height} mm
-                (blok {quadNeed.width.toFixed(0)}×{quadNeed.height.toFixed(0)} mm, crop marks tetap utuh).</>
-              )}
+              Binding <b>Signature</b> tetap spread 2 per sisi: lembaran-nya bersarang dan kena creep, jadi menambah
+              slot mengubah lembar mana duduk di mana. Pakai <i>Booklet</i> atau <i>Saddle-stitch</i> untuk 4 per sisi.
             </p>
-          )}
+          ) : folded && layout.slotsPerSide === 2 ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              {state.binding}: 2 per sisi (satu spread per sisi). Pilih <b>4 per side</b> untuk menumpuk dua spread dalam
+              satu lembar {paper.width}×{paper.height} mm — baris atas dicetak kepala-ke-kepala, jadi cukup dilipat
+              sekali di garis tengah tanpa dipotong.
+            </p>
+          ) : folded ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-indigo-500 dark:text-indigo-400">
+              Head-to-head aktif: {layout.slotsPerSide * 2} halaman per lembar (2 spread per sisi), baris atas
+              terbalik 180°. Lipat lembar di garis tengah vertikal, urutan baca sudah benar tanpa potong.
+            </p>
+          ) : null}
         </Field>
 
         <Field label="Orientation">

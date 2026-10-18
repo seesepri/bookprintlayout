@@ -245,7 +245,7 @@ export default function PreviewCanvas() {
                 src={artworkUrl}
                 alt={`page-${placement.pageNumber}`}
                 className="h-full w-full object-contain"
-                style={{ transform: `rotate(${info?.rotation ?? 0}deg)` }}
+                style={{ transform: `rotate(${placement.rotation}deg)` }}
                 draggable={false}
               />
             </div>

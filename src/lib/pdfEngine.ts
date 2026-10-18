@@ -136,7 +136,9 @@ function drawDashedRect(page: PDFPage, x0: number, y0: number, x1: number, y1: n
 }
 
 function drawEmbeddedPage(page: PDFPage, embedded: PDFEmbeddedPage, info: PageInfo, placement: PagePlacement) {
-  const rotation = ((info.rotation % 360) + 360) % 360;
+  // Placement rotation, not just the page's: a head-to-head band arrives turned
+  // 180° from the sheet geometry and the printed file has to follow it.
+  const rotation = ((((placement.rotation ?? info.rotation) % 360) + 360) % 360);
   const sourceW = info.widthPt > 0 ? info.widthPt : embedded.width;
   const sourceH = info.heightPt > 0 ? info.heightPt : embedded.height;
   const rotatedW = rotation === 90 || rotation === 270 ? sourceH : sourceW;

@@ -53,10 +53,37 @@ export function resolveSheetLayout(input: {
  * zoom on a 2x display wants ~770 px. Rasterise to what is on screen, and cap
  * it so a deep zoom cannot allocate a canvas the tab cannot hold.
  */
-export function hiResWidthFor(widthMm: number, pxPerMm: number, devicePixelRatio = 1, cap = 1800): number {
+/**
+ * Raster width for a page shown at `pxPerMm` on this device.
+ *
+ * The floor is 2x the CSS size, not 1x: at 1 devicePixelRatio a page drawn
+ * 230 px wide would otherwise be rasterised at 230 px, which is the very
+ * thumbnail the preview is supposed to replace. Supersampling and letting the
+ * browser downscale is what makes text read as sharp on a plain display.
+ */
+export function hiResWidthFor(
+  widthMm: number,
+  pxPerMm: number,
+  devicePixelRatio = 1,
+  cap = 2600,
+  supersample = 2
+): number {
   if (!Number.isFinite(widthMm) || !Number.isFinite(pxPerMm) || widthMm <= 0 || pxPerMm <= 0) return 0;
   const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 1 ? devicePixelRatio : 1;
-  return Math.max(64, Math.min(cap, Math.ceil(widthMm * pxPerMm * dpr)));
+  const ratio = Math.max(dpr, Number.isFinite(supersample) && supersample > 1 ? supersample : 1);
+  return Math.max(64, Math.min(cap, Math.ceil(widthMm * pxPerMm * ratio)));
+}
+
+/**
+ * Encoding for a preview raster.
+ *
+ * Lossy JPEG rings around black text on white, and that smearing is exactly
+ * what reads as "blurry" in a document preview, so small rasters are PNG. A
+ * deep zoom is big enough that file size (a base64 string in the DOM) starts
+ * to matter more than the ringing, so it falls back to a high-quality JPEG.
+ */
+export function thumbnailFormatFor(widthPx: number, pngUntil = 1400): { format: "png" | "jpeg"; quality: number } {
+  return widthPx <= pngUntil ? { format: "png", quality: 1 } : { format: "jpeg", quality: 0.92 };
 }
 
 /**

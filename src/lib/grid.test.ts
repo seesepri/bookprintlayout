@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computePerfectBindingSheets, planImposition } from "./imposition";
 import { buildSheetGeometry, validateImposition } from "./geometry";
 import { QUAD_GRID } from "./nup";
-import { hiResWidthFor, shouldRenderHiRes } from "./previewHelpers";
+import { hiResWidthFor, shouldRenderHiRes, thumbnailFormatFor } from "./previewHelpers";
 import type { MarksSettings, PageInfo } from "../types";
 
 const A5 = { width: 148, height: 210 };
@@ -203,7 +203,15 @@ describe("hi-res preview sizing", () => {
   it("asks for what the screen really has, capped", () => {
     // 148 mm of A5 page at 2.6 px/mm, zoom 1, DPR 2 -> 770 px.
     expect(hiResWidthFor(148, 2.6 * 1, 2)).toBe(770);
-    expect(hiResWidthFor(148, 2.6 * 3, 2)).toBe(1800); // capped
+    expect(hiResWidthFor(148, 2.6 * 6, 2)).toBe(2600); // capped
+    // A 1x display still gets 2x the CSS size: at 230 CSS px a 230 px raster is
+    // the thumbnail the preview was supposed to replace, which is why the first
+    // version of this fix left the sheet looking unchanged.
+    expect(hiResWidthFor(148, 1.55, 1)).toBe(459);
+    expect(hiResWidthFor(148, 1.55, 1, 2600, 1)).toBe(230);
+    expect(thumbnailFormatFor(459).format).toBe("png");
+    expect(thumbnailFormatFor(1400).format).toBe("png");
+    expect(thumbnailFormatFor(1401)).toEqual({ format: "jpeg", quality: 0.92 });
     expect(hiResWidthFor(0, 2.6, 2)).toBe(0);
     expect(hiResWidthFor(Number.NaN, 2.6, 2)).toBe(0);
   });

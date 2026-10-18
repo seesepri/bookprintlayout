@@ -19,6 +19,7 @@ import {
   resolveSheetLayout,
   hiResWidthFor,
   shouldRenderHiRes,
+  thumbnailFormatFor,
 } from "../../lib/previewHelpers";
 import { getSharedRenderDoc, renderPageThumbnail } from "../../lib/pdfRender";
 import Ruler from "./Ruler";
@@ -194,10 +195,7 @@ export default function PreviewCanvas() {
           // A page can be reordered or replaced in the page browser, so the
           // source page to rasterise is the one this page still points at.
           const sourcePage = (state.pages[pageNumber - 1]?.originalIndex ?? pageNumber - 1) + 1;
-          const { dataUrl } = await renderPageThumbnail(handle, sourcePage, wantedSharpWidth, {
-            format: "jpeg",
-            quality: 0.9,
-          });
+          const { dataUrl } = await renderPageThumbnail(handle, sourcePage, wantedSharpWidth, thumbnailFormatFor(wantedSharpWidth));
           next[pageNumber] = { url: dataUrl, width: wantedSharpWidth };
         }
         if (!cancelled) setSharp((prev) => ({ ...prev, ...next }));

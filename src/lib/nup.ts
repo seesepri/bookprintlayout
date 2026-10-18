@@ -21,8 +21,14 @@ export interface GridChoice {
   grid: GridSpec;
   slotsPerSide: number;
   reason: GridReason;
-  /** True when a 2x2 grid would have fitted but was declined. */
+  /** True when a 2x2 grid fits the sheet at all (crop marks aside). */
   quadAvailable: boolean;
+  /**
+   * True when the four-up block was chosen but leaves the crop marks nowhere
+   * to go. `drawCropMarks` shortens or skips a mark that has no room, so this
+   * is a notice about what the sheet cannot show, not a reason to refuse it.
+   */
+  marksClipped: boolean;
 }
 
 export interface GridRoom {
@@ -89,12 +95,22 @@ export function chooseGrid(
   setting: PagesPerSideSetting = "auto",
   room: GridRoom = { bleedMm: 0, gutterMm: 0, marksRoomMm: 0 }
 ): GridChoice {
-  const quadAvailable = !isFoldedBinding(binding) && gridFits(paper, bookSize, QUAD_GRID, room);
+  /*
+   * A four-up sheet is trimmed along the page edges, so the crop-mark reserve
+   * must not decide whether the pages fit: 2x2 A5 on A3 portrait measures
+   * 296 x 420 mm on a 297 x 420 mm sheet, leaving 0.5 mm of edge and no reserve
+   * at all. The denser grid is therefore measured on the block (bleed + gutter)
+   * while a spread keeps asking for the room marks have always required.
+   */
+  const quadRoom: GridRoom = { ...room, marksRoomMm: 0 };
+  const quadAvailable = !isFoldedBinding(binding) && gridFits(paper, bookSize, QUAD_GRID, quadRoom);
+  const marksClipped = quadAvailable && !gridFits(paper, bookSize, QUAD_GRID, room);
   const decider = (grid: GridSpec, reason: GridReason): GridChoice => ({
     grid,
     slotsPerSide: slotCount(grid),
     reason,
     quadAvailable,
+    marksClipped: slotCount(grid) > 2 ? marksClipped : false,
   });
 
   if (isFoldedBinding(binding)) return decider(PAIR_GRID, "pair-folded");

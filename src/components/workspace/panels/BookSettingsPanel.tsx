@@ -40,10 +40,16 @@ export default function BookSettingsPanel() {
       }).sheets.length,
     [state.pages.length, state.binding, state.signatureSize, state.bindingDirection, layout.slotsPerSide]
   );
-  const quadNeed = gridSheetSize(activeBookSize, { cols: 2, rows: 2 }, {
+  /* The gate the chooser uses (block + bleed, marks aside) and the sheet size
+     that would additionally give the crop marks their room. */
+  const quadRoom = {
     bleedMm: Math.max(0, state.bleedMm),
     gutterMm: state.binding === "perfect-binding" ? Math.max(0, state.gutterMm) : 0,
-    marksRoomMm: state.marks.showCropMarks ? geometryConstants.cropGapMm + geometryConstants.cropLengthMm : 0,
+  };
+  const quadNeed = gridSheetSize(activeBookSize, { cols: 2, rows: 2 }, { ...quadRoom, marksRoomMm: 0 });
+  const quadMarksNeed = gridSheetSize(activeBookSize, { cols: 2, rows: 2 }, {
+    ...quadRoom,
+    marksRoomMm: geometryConstants.cropGapMm + geometryConstants.cropLengthMm,
   });
 
   return (
@@ -159,6 +165,13 @@ export default function BookSettingsPanel() {
               4 halaman per sisi butuh lembar {quadNeed.width.toFixed(1)}×{quadNeed.height.toFixed(1)} mm; kertas{" "}
               {paper.width}×{paper.height} mm belum cukup (ukuran buku {activeBookSize.width}×{activeBookSize.height}{" "}
               mm, bleed {state.bleedMm} mm).
+            </p>
+          )}
+          {layout.marksClipped && (
+            <p className="text-amber-600 dark:text-amber-400">
+              Crop marks tidak kebagian ruang di lembar ini, jadi mark yang tidak muat dilewati.{" "}
+              {quadMarksNeed.width.toFixed(1)}×{quadMarksNeed.height.toFixed(1)} mm dibutuhkan supaya mark ikut tampil{" "}
+              — atau potong lembar mengikuti tepi halaman trim.
             </p>
           )}
         </div>

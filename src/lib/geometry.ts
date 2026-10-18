@@ -185,9 +185,12 @@ function requiredSheetSize(
   // Crop marks are drawn only at the outer corners of the imposed block. The
   // center is a fold/binding edge, not an outer cut edge for booklet work, so
   // marks there would run into the neighbouring artwork.
-  const cropExtra = marks.showCropMarks ? CROP_GAP_MM + CROP_LENGTH_MM : 0;
+  const cropExtra =
+    marks.showCropMarks && slotCount(grid) <= 2 ? CROP_GAP_MM + CROP_LENGTH_MM : 0;
   // One sizing rule for every grid, shared with the layout chooser, so the
-  // check can never disagree with what was actually placed.
+  // check can never disagree with what was actually placed: both measure a
+  // denser grid on the block alone (see chooseGrid), which is also the size the
+  // guillotine cuts to.
   return gridSheetSize(bookSize, grid, {
     bleedMm: Math.max(0, bleedMm),
     gutterMm: binding === "perfect-binding" ? Math.max(0, gutterMm) : 0,
@@ -322,6 +325,7 @@ export function validateImposition(params: {
   const { pages, sheets, sheetCount, signatureSheetCounts, paddedTotal, paper, bookSize, bleedMm, gutterMm, safeAreaMm, marks, binding, creep } = params;
   const grid = params.grid ?? PAIR_GRID;
   const slotsPerSide = slotCount(grid);
+  const multiUp = slotsPerSide > 2;
   const errors: string[] = [];
   const warnings: string[] = [];
   const deepestSignature = Math.max(1, ...Object.values(signatureSheetCounts ?? { 1: sheetCount }));
@@ -371,6 +375,24 @@ export function validateImposition(params: {
     errors.push(
       `Layout tidak muat pada kertas. Required ${requiredSheet.width.toFixed(1)} × ${requiredSheet.height.toFixed(1)} mm, selected ${paper.width.toFixed(1)} × ${paper.height.toFixed(1)} mm.`
     );
+  }
+
+  /*
+   * A denser sheet is cut along the page edges, so a block that fills the sheet
+   * is legitimate; `drawCropMarks` skips any mark that has no room. Report what
+   * the sheet cannot show instead of refusing the layout.
+   */
+  if (multiUp && marks.showCropMarks) {
+    const withMarks = gridSheetSize(bookSize, grid, {
+      bleedMm: Math.max(0, bleedMm),
+      gutterMm: binding === "perfect-binding" ? Math.max(0, gutterMm) : 0,
+      marksRoomMm: CROP_GAP_MM + CROP_LENGTH_MM,
+    });
+    if (!fits(withMarks, paper)) {
+      warnings.push(
+        `Crop marks tidak punya ruang pada grid ${grid.cols}×${grid.rows} di kertas ini dan akan dilewati. ${withMarks.width.toFixed(1)} × ${withMarks.height.toFixed(1)} mm dibutuhkan untuk menampilkannya.`
+      );
+    }
   }
 
   const numericValues = [bleedMm, gutterMm, safeAreaMm, maxCreep];

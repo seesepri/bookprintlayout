@@ -91,6 +91,36 @@ describe("chooseGrid", () => {
   it("reports that a 4-up was available when the user forced it off", () => {
     expect(chooseGrid(A3_PORTRAIT, A5, "perfect-binding", 2, room).quadAvailable).toBe(true);
   });
+
+  it("takes the 4-up when the marks are left with no room, and flags it", () => {
+    // 2x2 A5 measures 296 x 420 mm on a 297 x 420 mm sheet: 7 mm of mark room on
+    // every side is impossible, but the pages fit and the guillotine has the page
+    // edges to cut on, so the layout is accepted and the marks are skipped.
+    const choice = chooseGrid(A3_PORTRAIT, A5, "perfect-binding", "auto", { bleedMm: 0, gutterMm: 0, marksRoomMm: 7 });
+    expect(choice.grid).toEqual(QUAD_GRID);
+    expect(choice.quadAvailable).toBe(true);
+    expect(choice.marksClipped).toBe(true);
+  });
+
+  it("keeps the marks when the sheet holds block, bleed and reserve", () => {
+    const SRA3 = { width: 320, height: 450 };
+    const choice = chooseGrid(SRA3, A5, "perfect-binding", "auto", { bleedMm: 3, gutterMm: 0, marksRoomMm: 7 });
+    expect(choice.grid).toEqual(QUAD_GRID);
+    expect(choice.marksClipped).toBe(false);
+  });
+
+  it("claims nothing about clipped marks for a spread", () => {
+    const choice = chooseGrid(A4, A5, "perfect-binding", "auto", { bleedMm: 0, gutterMm: 0, marksRoomMm: 7 });
+    expect(choice.grid).toEqual(PAIR_GRID);
+    expect(choice.marksClipped).toBe(false);
+  });
+
+  it("still declines 4-up when bleed alone overflows, marks or not", () => {
+    for (const marksRoomMm of [0, 7]) {
+      const choice = chooseGrid(A3_PORTRAIT, A5, "perfect-binding", "auto", { bleedMm: 3, gutterMm: 0, marksRoomMm });
+      expect(choice.grid, String(marksRoomMm)).toEqual(PAIR_GRID);
+    }
+  });
 });
 
 describe("maxRowsThatFit", () => {

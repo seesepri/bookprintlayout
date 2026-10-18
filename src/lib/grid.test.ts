@@ -126,6 +126,49 @@ describe("2x2 sheet geometry", () => {
     expect(tight.errors.join(" ")).toMatch(/tidak muat/);
   });
 
+  it("accepts the 4-up sheet with crop marks on, warning that they are skipped", () => {
+    const plan = planImposition(16, "perfect-binding", 16, "left", { slotsPerSide: 4 });
+    const v = validateImposition({
+      pages: pages(16),
+      sheets: plan.sheets,
+      sheetCount: plan.sheets.length,
+      signatureSheetCounts: plan.signatureSheetCounts,
+      paddedTotal: plan.paddedTotal,
+      paper: A3_PORTRAIT,
+      bookSize: A5,
+      bleedMm: 0,
+      gutterMm: 0,
+      safeAreaMm: 0,
+      marks: MARKS_ON,
+      binding: "perfect-binding",
+      grid: QUAD_GRID,
+    });
+    expect(v.errors).toEqual([]);
+    expect(v.valid).toBe(true);
+    expect(v.warnings.join(" ")).toMatch(/Crop marks tidak punya ruang/);
+  });
+
+  it("still demands mark room for a spread — the pair rule is untouched", () => {
+    const plan = planImposition(8, "perfect-binding", 8, "left");
+    const v = validateImposition({
+      pages: pages(8),
+      sheets: plan.sheets,
+      sheetCount: plan.sheets.length,
+      signatureSheetCounts: plan.signatureSheetCounts,
+      paddedTotal: plan.paddedTotal,
+      paper: A3_PORTRAIT,
+      bookSize: A5,
+      bleedMm: 0,
+      gutterMm: 0,
+      safeAreaMm: 0,
+      marks: MARKS_ON,
+      binding: "perfect-binding",
+    });
+    // 2 x 148 + 2 x 7 mm = 310 mm on a 297 mm sheet: rejected, as it has always been.
+    expect(v.valid).toBe(false);
+    expect(v.errors.join(" ")).toMatch(/tidak muat/);
+  });
+
   it("keeps the classic spread byte-for-byte the same shape as before", () => {
     const g = buildSheetGeometry({ ...base, sheet: planImposition(8, "perfect-binding").sheets[0] });
     expect(g.frontSlots).toBeUndefined();

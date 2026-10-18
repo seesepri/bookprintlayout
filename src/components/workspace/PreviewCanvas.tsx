@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ZoomIn,
   ZoomOut,
@@ -13,7 +13,14 @@ import {
 import { useProject } from "../../state/ProjectContext";
 import { planImposition } from "../../lib/imposition";
 import { buildSheetGeometry, PagePlacement } from "../../lib/geometry";
-import { orientedPaperSize, getPageThumb } from "../../lib/previewHelpers";
+import {
+  orientedPaperSize,
+  getPageThumb,
+  resolveSheetLayout,
+  hiResWidthFor,
+  shouldRenderHiRes,
+} from "../../lib/previewHelpers";
+import { getSharedRenderDoc, renderPageThumbnail } from "../../lib/pdfRender";
 import Ruler from "./Ruler";
 import { cn } from "../../utils/cn";
 
@@ -27,14 +34,33 @@ export default function PreviewCanvas() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragging = useRef<{ x: number; y: number } | null>(null);
 
-  const plan = useMemo(
-    () => planImposition(state.pages.length || 0, state.binding, state.signatureSize, state.bindingDirection),
-    [state.pages.length, state.binding, state.signatureSize, state.bindingDirection]
-  );
-
   const paper = useMemo(
     () => orientedPaperSize(activePaperSize, state.orientation, activeBookSize),
     [activePaperSize, state.orientation, activeBookSize]
+  );
+
+  // The same resolver the exporter runs, so the sheet on screen is the sheet on
+  // paper — including when a 2x2 grid starts paying for itself.
+  const layout = useMemo(
+    () =>
+      resolveSheetLayout({
+        paper,
+        bookSize: activeBookSize,
+        binding: state.binding,
+        setting: state.pagesPerSide,
+        bleedMm: state.bleedMm,
+        gutterMm: state.gutterMm,
+        showCropMarks: state.marks.showCropMarks,
+      }),
+    [paper, activeBookSize, state.binding, state.pagesPerSide, state.bleedMm, state.gutterMm, state.marks.showCropMarks]
+  );
+
+  const plan = useMemo(
+    () =>
+      planImposition(state.pages.length || 0, state.binding, state.signatureSize, state.bindingDirection, {
+        slotsPerSide: layout.slotsPerSide,
+      }),
+    [state.pages.length, state.binding, state.signatureSize, state.bindingDirection, layout.slotsPerSide]
   );
 
   const currentSheet = plan.sheets[Math.min(sheetIndex, Math.max(plan.sheets.length - 1, 0))];
@@ -100,6 +126,7 @@ export default function PreviewCanvas() {
       marks: state.marks,
       creep: state.creep,
       signatureSheetCount: signatureSheetCountOfSheet,
+      grid: layout.grid,
     });
   }, [
     plan.sheets,
@@ -115,10 +142,77 @@ export default function PreviewCanvas() {
     state.marks,
     state.creep,
     signatureSheetCountOfSheet,
+    layout.grid,
   ]);
+
+  const sidePlacements: PagePlacement[] = useMemo(() => {
+    if (!geometry) return [];
+    return side === "front"
+      ? geometry.frontSlots ?? [geometry.front.left, geometry.front.right]
+      : geometry.backSlots ?? [geometry.back.left, geometry.back.right];
+  }, [geometry, side]);
+
+  /**
+   * Rework of the upload-time thumbnail for the sheet view only.
+   *
+   * Uploading rasterises one 220 px lossy image per page for the page browser.
+   * Shown at ~1 mm = 2.6 px and DPR 2, a single page wants 500-800 px, so the
+   * sheet was stretching that thumbnail. Pages currently visible get re-rendered
+   * from the source document at the size they are actually drawn.
+   */
+  const [sharp, setSharp] = useState<Record<number, { url: string; width: number }>>({});
+  const wantedSharpWidth = useMemo(
+    () =>
+      hiResWidthFor(
+        sidePlacements.reduce((max, p) => Math.max(max, p.trim.width), 0),
+        scale,
+        typeof window === "undefined" ? 1 : window.devicePixelRatio || 1
+      ),
+    [sidePlacements, scale]
+  );
+  const sharpTargets = useMemo(
+    () =>
+      sidePlacements
+        .map((p) => p.pageNumber)
+        .filter((n): n is number => !!n && shouldRenderHiRes(sharp[n]?.width, wantedSharpWidth)),
+    // `sharp` is deliberately not a dependency: the effect below is what fills it.
+    [sidePlacements, wantedSharpWidth]
+  );
+
+  // A new file means new bytes behind the same page numbers: drop the cache.
+  useEffect(() => setSharp({}), [state.sourceBytes]);
+
+  useEffect(() => {
+    const bytes = state.sourceBytes;
+    if (!bytes?.length || !sharpTargets.length || wantedSharpWidth <= 0) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const handle = await getSharedRenderDoc(bytes);
+        const next: Record<number, { url: string; width: number }> = {};
+        for (const pageNumber of sharpTargets) {
+          // A page can be reordered or replaced in the page browser, so the
+          // source page to rasterise is the one this page still points at.
+          const sourcePage = (state.pages[pageNumber - 1]?.originalIndex ?? pageNumber - 1) + 1;
+          const { dataUrl } = await renderPageThumbnail(handle, sourcePage, wantedSharpWidth, {
+            format: "jpeg",
+            quality: 0.9,
+          });
+          next[pageNumber] = { url: dataUrl, width: wantedSharpWidth };
+        }
+        if (!cancelled) setSharp((prev) => ({ ...prev, ...next }));
+      } catch {
+        /* Unreadable source: the fast thumbnail stays, nothing else changes. */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.sourceBytes, state.pages, sharpTargets, wantedSharpWidth]);
 
   const renderPlacement = (placement: PagePlacement) => {
     const info = getPageThumb(state.pages, placement.pageNumber);
+    const artworkUrl = (placement.pageNumber ? sharp[placement.pageNumber]?.url : undefined) ?? info?.thumbnail;
     const x = placement.bleed.x * scale;
     const y = (paper.height - placement.bleed.y - placement.bleed.height) * scale;
     const width = placement.bleed.width * scale;
@@ -131,7 +225,7 @@ export default function PreviewCanvas() {
 
     return (
       <div
-        key={`${placement.pageNumber ?? "blank"}-${placement.trim.x}`}
+        key={`${placement.pageNumber ?? "blank"}-${placement.trim.x}-${placement.trim.y}`}
         className="absolute overflow-visible"
         style={{ left: x, top: y, width, height }}
       >
@@ -139,7 +233,7 @@ export default function PreviewCanvas() {
           className="absolute border border-slate-300 bg-white dark:border-slate-700"
           style={{ left: trimLeft, top: trimTop, width: placement.trim.width * scale, height: placement.trim.height * scale }}
         >
-          {info?.thumbnail ? (
+          {artworkUrl ? (
             <div
               className="absolute overflow-hidden bg-white"
               style={{
@@ -150,10 +244,10 @@ export default function PreviewCanvas() {
               }}
             >
               <img
-                src={info.thumbnail}
+                src={artworkUrl}
                 alt={`page-${placement.pageNumber}`}
                 className="h-full w-full object-contain"
-                style={{ transform: `rotate(${info.rotation}deg)` }}
+                style={{ transform: `rotate(${info?.rotation ?? 0}deg)` }}
                 draggable={false}
               />
             </div>
@@ -371,12 +465,7 @@ export default function PreviewCanvas() {
                     className="relative bg-white shadow-2xl ring-1 ring-slate-300 dark:ring-slate-700"
                     style={{ width: sheetWpx, height: sheetHpx }}
                   >
-                    {geometry && (side === "front" ? geometry.front : geometry.back) && (
-                      <>
-                        {renderPlacement((side === "front" ? geometry.front : geometry.back).left)}
-                        {renderPlacement((side === "front" ? geometry.front : geometry.back).right)}
-                      </>
-                    )}
+                    {geometry && sidePlacements.length > 0 && <>{sidePlacements.map(renderPlacement)}</>}
                     {state.marks.showFoldMarks && isFolded && geometry && (
                       <div
                         className="pointer-events-none absolute top-0 z-10 h-full border-l border-dashed border-violet-400"

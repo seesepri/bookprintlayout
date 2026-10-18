@@ -1,4 +1,5 @@
-import { BindingType, CreepSettings, MarksSettings, PageInfo, Sheet, SizeMM } from "../types";
+import { BindingType, CreepSettings, MarksSettings, PageInfo, Sheet, SheetSide, SizeMM } from "../types";
+import { GridSpec, PAIR_GRID, gridSheetSize, slotCount, slotIndexFromPosition } from "./nup";
 import { mmToPt } from "./paperSizes";
 import { computeCreepShiftMm } from "./imposition";
 
@@ -21,7 +22,8 @@ export interface CropMarkGeometry {
   x: number;
   y: number;
   dx: -1 | 1;
-  dy: -1 | 1;
+  /** 0 means "tick only along x": used where a cut line has no trim edge. */
+  dy: -1 | 0 | 1;
 }
 
 export interface SheetGeometry {
@@ -32,6 +34,11 @@ export interface SheetGeometry {
   cropGapMm: number;
   cropLengthMm: number;
   foldX: number;
+  /** Row-major placements (index 0 = top-left) when the sheet is denser than a spread. */
+  frontSlots?: PagePlacement[];
+  backSlots?: PagePlacement[];
+  /** Grid the sheet was laid out on; absent means the classic 2x1 spread. */
+  grid?: GridSpec;
 }
 
 export interface ImpositionValidation {
@@ -109,7 +116,11 @@ export function buildSheetGeometry(params: {
   creep?: CreepSettings;
   /** Sheets inside this sheet's own signature — drives the creep schedule. */
   signatureSheetCount?: number;
+  /** Pages-per-side grid. Defaults to the classic 2x1 spread. */
+  grid?: GridSpec;
 }): SheetGeometry {
+  const grid = params.grid ?? PAIR_GRID;
+  if (slotCount(grid) > 2) return buildGridGeometry({ ...params, grid }, grid);
   const {
     sheet,
     paper,
@@ -163,14 +174,106 @@ export function buildSheetGeometry(params: {
   };
 }
 
-function requiredSheetSize(bookSize: SizeMM, bleedMm: number, gutterMm: number, binding: BindingType, marks: MarksSettings): SizeMM {
-  // Crop marks are drawn only at the four outer corners of the imposed
-  // spread. The center is a fold/binding edge, not an outer cut edge for
-  // booklet work, so marks there would run into the neighboring artwork.
-  const cropExtra = marks.showCropMarks ? CROP_GAP_MM + CROP_LENGTH_MM : 0;
+function requiredSheetSize(
+  bookSize: SizeMM,
+  bleedMm: number,
+  gutterMm: number,
+  binding: BindingType,
+  marks: MarksSettings,
+  grid: GridSpec = PAIR_GRID
+): SizeMM {
+  // Crop marks are drawn only at the outer corners of the imposed block. The
+  // center is a fold/binding edge, not an outer cut edge for booklet work, so
+  // marks there would run into the neighbouring artwork.
+  const cropExtra =
+    marks.showCropMarks && slotCount(grid) <= 2 ? CROP_GAP_MM + CROP_LENGTH_MM : 0;
+  // One sizing rule for every grid, shared with the layout chooser, so the
+  // check can never disagree with what was actually placed: both measure a
+  // denser grid on the block alone (see chooseGrid), which is also the size the
+  // guillotine cuts to.
+  return gridSheetSize(bookSize, grid, {
+    bleedMm: Math.max(0, bleedMm),
+    gutterMm: binding === "perfect-binding" ? Math.max(0, gutterMm) : 0,
+    marksRoomMm: cropExtra,
+  });
+}
+
+/**
+ * A denser-than-spread sheet: `cols x rows` book pages, row-major, centred on
+ * the paper. Only reachable for bindings that are not folded (see nup.ts), so
+ * there is no creep and no fold line: the gutter separates the two columns and
+ * rows stack flush because every page keeps its own safe area.
+ */
+function buildGridGeometry(
+  params: Parameters<typeof buildSheetGeometry>[0] & { grid: GridSpec },
+  grid: GridSpec
+): SheetGeometry {
+  const { sheet, paper, bookSize, bleedMm, gutterMm, safeAreaMm, binding, bindingDirection = "left", pages } = params;
+  const cols = Math.max(1, grid.cols);
+  const rows = Math.max(1, grid.rows);
+  const gap = binding === "perfect-binding" ? Math.max(0, gutterMm) : 0;
+  const blockW = bookSize.width * cols + gap * (cols - 1);
+  const blockH = bookSize.height * rows;
+  const originX = (paper.width - blockW) / 2;
+  const originY = (paper.height - blockH) / 2;
+
+  // Geometry is millimetres measured from the bottom-left, so visual row 0 has
+  // to sit highest on the sheet.
+  const slotTrim = (index: number): RectMM => {
+    const { col, row } = slotIndexFromPosition(grid, index);
+    return rect(
+      originX + col * (bookSize.width + gap),
+      originY + (rows - 1 - row) * bookSize.height,
+      bookSize.width,
+      bookSize.height
+    );
+  };
+
+  const sidePlacements = (slots: (number | null)[] | undefined, fallback: SheetSide): PagePlacement[] => {
+    const numbers = slots && slots.length === cols * rows ? slots : [fallback.left, fallback.right];
+    return numbers.map((pageNumber, index) => {
+      const { col } = slotIndexFromPosition(grid, index);
+      return pagePlacement(
+        pageNumber,
+        slotTrim(index),
+        bleedMm,
+        gutterMm,
+        safeAreaMm,
+        bindingDirection,
+        col === 0 ? "left" : "right",
+        pages,
+        0
+      );
+    });
+  };
+
+  const front = sidePlacements(sheet.frontSlots, sheet.front);
+  const back = sidePlacements(sheet.backSlots, sheet.back);
+
+  // Outer corners of the whole block, plus a horizontal-only tick on each
+  // internal row boundary so a guillotine cut has something to line up with.
+  const cropMarks: CropMarkGeometry[] = [
+    { x: originX, y: originY + blockH, dx: -1, dy: -1 },
+    { x: originX + blockW, y: originY + blockH, dx: 1, dy: -1 },
+    { x: originX, y: originY, dx: -1, dy: 1 },
+    { x: originX + blockW, y: originY, dx: 1, dy: 1 },
+  ];
+  for (let r = 1; r < rows; r++) {
+    const y = originY + r * bookSize.height;
+    cropMarks.push({ x: originX, y, dx: -1, dy: 0 }, { x: originX + blockW, y, dx: 1, dy: 0 });
+  }
+
   return {
-    width: bookSize.width * 2 + (binding === "perfect-binding" ? Math.max(0, gutterMm) : 0) + bleedMm * 2 + cropExtra * 2,
-    height: bookSize.height + bleedMm * 2 + cropExtra * 2,
+    paper,
+    front: { left: front[0], right: front[1] ?? front[0] },
+    back: { left: back[0], right: back[1] ?? back[0] },
+    frontSlots: front,
+    backSlots: back,
+    cropMarks,
+    cropGapMm: CROP_GAP_MM,
+    cropLengthMm: CROP_LENGTH_MM,
+    foldX: originX + blockW / 2,
+    grid,
   };
 }
 
@@ -216,29 +319,37 @@ export function validateImposition(params: {
   marks: MarksSettings;
   binding: BindingType;
   creep?: CreepSettings;
+  /** Grid the plan was built for (defaults to the 2x1 spread). */
+  grid?: GridSpec;
 }): ImpositionValidation {
   const { pages, sheets, sheetCount, signatureSheetCounts, paddedTotal, paper, bookSize, bleedMm, gutterMm, safeAreaMm, marks, binding, creep } = params;
+  const grid = params.grid ?? PAIR_GRID;
+  const slotsPerSide = slotCount(grid);
+  const multiUp = slotsPerSide > 2;
   const errors: string[] = [];
   const warnings: string[] = [];
   const deepestSignature = Math.max(1, ...Object.values(signatureSheetCounts ?? { 1: sheetCount }));
   const maxCreep = binding === "perfect-binding" || !creep
     ? 0
     : computeCreepShiftMm(1, deepestSignature, creep.paperThicknessMm, creep.mode, creep.manualAmountMm);
-  const baseRequired = requiredSheetSize(bookSize, Math.max(0, bleedMm), gutterMm, binding, marks);
+  const baseRequired = requiredSheetSize(bookSize, Math.max(0, bleedMm), gutterMm, binding, marks, grid);
   const requiredSheet = { ...baseRequired, width: baseRequired.width + maxCreep * 2 };
 
   if (!validPositiveSize(paper)) errors.push("Ukuran kertas tidak valid.");
   if (!validPositiveSize(bookSize)) errors.push("Ukuran buku/trim tidak valid.");
-  // Every binding fills 4 pages per physical sheet: booklet/saddle/signature by
-  // folding, perfect binding by duplexing the back side.
-  const expectedSheets = Math.ceil(paddedTotal / 4);
+  // Each physical sheet fills slotsPerSide * 2 pages: booklet/saddle/signature
+  // by folding, perfect binding by duplexing the back side.
+  const expectedSheets = Math.ceil(paddedTotal / (slotsPerSide * 2));
   if (sheetCount !== expectedSheets && pages.length > 0) {
     errors.push("Jumlah sheet imposition tidak konsisten dengan padding binding.");
   }
 
   const seen = new Map<number, number>();
   for (const sheet of sheets) {
-    const sides = [sheet.front.left, sheet.front.right, sheet.back.left, sheet.back.right];
+    const sides = [
+      ...(sheet.frontSlots ?? [sheet.front.left, sheet.front.right]),
+      ...(sheet.backSlots ?? [sheet.back.left, sheet.back.right]),
+    ];
     for (const pageNumber of sides) {
       if (pageNumber !== null) seen.set(pageNumber, (seen.get(pageNumber) ?? 0) + 1);
     }
@@ -264,6 +375,24 @@ export function validateImposition(params: {
     errors.push(
       `Layout tidak muat pada kertas. Required ${requiredSheet.width.toFixed(1)} × ${requiredSheet.height.toFixed(1)} mm, selected ${paper.width.toFixed(1)} × ${paper.height.toFixed(1)} mm.`
     );
+  }
+
+  /*
+   * A denser sheet is cut along the page edges, so a block that fills the sheet
+   * is legitimate; `drawCropMarks` skips any mark that has no room. Report what
+   * the sheet cannot show instead of refusing the layout.
+   */
+  if (multiUp && marks.showCropMarks) {
+    const withMarks = gridSheetSize(bookSize, grid, {
+      bleedMm: Math.max(0, bleedMm),
+      gutterMm: binding === "perfect-binding" ? Math.max(0, gutterMm) : 0,
+      marksRoomMm: CROP_GAP_MM + CROP_LENGTH_MM,
+    });
+    if (!fits(withMarks, paper)) {
+      warnings.push(
+        `Crop marks tidak punya ruang pada grid ${grid.cols}×${grid.rows} di kertas ini dan akan dilewati. ${withMarks.width.toFixed(1)} × ${withMarks.height.toFixed(1)} mm dibutuhkan untuk menampilkannya.`
+      );
+    }
   }
 
   const numericValues = [bleedMm, gutterMm, safeAreaMm, maxCreep];

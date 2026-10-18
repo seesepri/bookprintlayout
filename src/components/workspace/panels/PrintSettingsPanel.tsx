@@ -1,5 +1,5 @@
 import { useProject } from "../../../state/ProjectContext";
-import { PanelSection, Field, NumberInput, Checkbox, Select } from "./PanelShell";
+import { PanelSection, Field, NumberField, Checkbox, Select } from "./PanelShell";
 import { computeCreepShiftMm, planImposition } from "../../../lib/imposition";
 import { readNumberInput } from "../../../lib/paperSizes";
 
@@ -94,14 +94,12 @@ export default function PrintSettingsPanel() {
       </PanelSection>
 
       <PanelSection title="Creep Compensation">
-        <Field label="Paper Thickness (mm)">
-          <NumberInput
-            step={0.01}
-            min={0}
-            value={state.creep.paperThicknessMm}
-            onChange={(e) => dispatch({ type: "SET_CREEP", creep: { paperThicknessMm: readNumberInput(e.target.value, { fallback: state.creep.paperThicknessMm, min: 0, max: 1 }) } })}
-          />
-        </Field>
+        <NumberField
+          label="Paper Thickness (mm)"
+          value={state.creep.paperThicknessMm}
+          range={{ min: 0, max: 1, step: 0.01 }}
+          onCommit={(paperThicknessMm) => dispatch({ type: "SET_CREEP", creep: { paperThicknessMm } })}
+        />
         <Field label="Creep Amount">
           <Select
             value={state.creep.mode}
@@ -112,13 +110,12 @@ export default function PrintSettingsPanel() {
           </Select>
         </Field>
         {state.creep.mode === "manual" && (
-          <Field label="Manual Amount (mm)">
-            <NumberInput
-              step={0.05}
-              value={state.creep.manualAmountMm}
-              onChange={(e) => dispatch({ type: "SET_CREEP", creep: { manualAmountMm: readNumberInput(e.target.value, { fallback: state.creep.manualAmountMm, min: 0, max: 20 }) } })}
-            />
-          </Field>
+          <NumberField
+            label="Manual Amount (mm)"
+            value={state.creep.manualAmountMm}
+            range={{ min: 0, max: 20 }}
+            onCommit={(manualAmountMm) => dispatch({ type: "SET_CREEP", creep: { manualAmountMm } })}
+          />
         )}
         <div className="rounded-lg bg-violet-50 p-3 text-xs text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
           Estimasi pergeseran maksimum (sheet terluar): <b>{estimatedCreep.toFixed(2)} mm</b> pada signature {deepestSignature} lembar

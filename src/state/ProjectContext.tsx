@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
+import type { PagesPerSideSetting } from "../lib/nup";
 import { saveProject } from "../lib/persistence";
 import {
   BindingDirection,
@@ -29,6 +30,8 @@ export interface ProjectState {
   bookSizeCustom: SizeMM;
   paperSizePreset: PresetPaperSize;
   paperSizeCustom: SizeMM;
+  /** Pages-per-side density for the print sheet. "auto" keeps the classic spread on folded bindings. */
+  pagesPerSide: PagesPerSideSetting;
   orientation: Orientation;
 
   binding: BindingType;
@@ -62,6 +65,7 @@ export type Action =
   | { type: "SET_BOOK_SIZE_CUSTOM"; size: SizeMM }
   | { type: "SET_PAPER_SIZE_PRESET"; preset: PresetPaperSize }
   | { type: "SET_PAPER_SIZE_CUSTOM"; size: SizeMM }
+  | { type: "SET_PAGES_PER_SIDE"; value: PagesPerSideSetting }
   | { type: "SET_ORIENTATION"; orientation: Orientation }
   | { type: "SET_BINDING"; binding: BindingType }
   | { type: "SET_BINDING_DIRECTION"; direction: BindingDirection }
@@ -100,6 +104,7 @@ export const initialState: ProjectState = {
   bookSizeCustom: { ...BOOK_SIZE_PRESETS.A5 },
   paperSizePreset: "A4",
   paperSizeCustom: { ...PAPER_SIZE_PRESETS.A4 },
+  pagesPerSide: "auto",
   orientation: "auto",
 
   binding: "booklet",
@@ -168,6 +173,8 @@ function reducer(state: ProjectState, action: Action): ProjectState {
       };
     case "SET_PAPER_SIZE_CUSTOM":
       return { ...state, paperSizeCustom: action.size, generatedPdf: null };
+    case "SET_PAGES_PER_SIDE":
+      return { ...state, pagesPerSide: action.value, generatedPdf: null };
     case "SET_ORIENTATION":
       return { ...state, orientation: action.orientation, generatedPdf: null };
     case "SET_BINDING":
@@ -249,6 +256,7 @@ const COALESCABLE = new Set<Action["type"]>([
   "SET_SIGNATURE_SIZE",
   "SET_BOOK_SIZE_CUSTOM",
   "SET_PAPER_SIZE_CUSTOM",
+  "SET_PAGES_PER_SIDE",
 ]);
 
 const AUTOSAVE_MS = 800;

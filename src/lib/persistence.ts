@@ -49,6 +49,7 @@ type SavedState = {
   | "bookSizeCustom"
   | "paperSizePreset"
   | "paperSizeCustom"
+  | "pagesPerSide"
   | "orientation"
   | "binding"
   | "bindingDirection"
@@ -94,6 +95,7 @@ export function toSavedState(state: ProjectState): SavedState {
     bookSizeCustom: state.bookSizeCustom,
     paperSizePreset: state.paperSizePreset,
     paperSizeCustom: state.paperSizeCustom,
+    pagesPerSide: state.pagesPerSide,
     orientation: state.orientation,
     binding: state.binding,
     bindingDirection: state.bindingDirection,

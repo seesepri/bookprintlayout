@@ -96,6 +96,15 @@ export interface Sheet {
   signature: number;
   front: SheetSide;
   back: SheetSide;
+  /** Pages per side when the sheet is denser than a two-page spread. */
+  slotsPerSide?: number;
+  /**
+   * Row-major page numbers for a multi-up side, index 0 = top-left. Only set
+   * when slotsPerSide > 2; `front`/`back` keep the first two slots so every
+   * existing reader of a spread still sees the same thing.
+   */
+  frontSlots?: (number | null)[];
+  backSlots?: (number | null)[];
 }
 
 export interface SignatureRange {

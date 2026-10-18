@@ -67,10 +67,37 @@ export async function readPageExtent(
   return { widthPt: viewport.width, heightPt: viewport.height };
 }
 
+export interface ThumbnailOptions {
+  /** Kept for call sites that want to state the intent explicitly. */
+  format?: "jpeg" | "png";
+  /** Only used for jpeg. 0.82 is the page-browser default; preview wants more. */
+  quality?: number;
+}
+
+/**
+ * One pdf.js document per uploaded byte array, shared by every preview that
+ * needs more pixels than the upload-time thumbnail. Opening a document is the
+ * expensive part of rendering, and the preview re-renders as the user zooms.
+ */
+const sharedDocs = new WeakMap<Uint8Array, Promise<PdfDocHandle>>();
+
+export function getSharedRenderDoc(bytes: Uint8Array): Promise<PdfDocHandle> {
+  const hit = sharedDocs.get(bytes);
+  if (hit) return hit;
+  const opened = openPdfForRender(bytes);
+  // A failed open must not be cached forever: the next attempt retries.
+  opened.catch(() => {
+    if (sharedDocs.get(bytes) === opened) sharedDocs.delete(bytes);
+  });
+  sharedDocs.set(bytes, opened);
+  return opened;
+}
+
 export async function renderPageThumbnail(
   handle: PdfDocHandle,
   pageNumber: number,
-  targetWidth = 240
+  targetWidth = 240,
+  options: ThumbnailOptions = {}
 ): Promise<{ dataUrl: string; widthPt: number; heightPt: number }> {
   const page = await handle.doc.getPage(pageNumber);
   const baseViewport = page.getViewport({ scale: 1 });
@@ -84,8 +111,11 @@ export async function renderPageThumbnail(
 
   await page.render({ canvasContext: ctx, viewport, canvas }).promise;
 
+  const format = options.format ?? "jpeg";
   return {
-    dataUrl: canvas.toDataURL("image/jpeg", 0.82),
+    // PNG for a crisp approval view: text-heavy pages are exactly what a JPEG
+    // quality of 0.82 smears. The page browser keeps the small, lossy one.
+    dataUrl: format === "png" ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", options.quality ?? 0.82),
     widthPt: baseViewport.width,
     heightPt: baseViewport.height,
   };

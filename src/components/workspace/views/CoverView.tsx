@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { UploadCloud, ImageIcon, DownloadCloud, Loader2 } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
-import { Checkbox } from "../panels/PanelShell";
+import { Checkbox, NumberBox } from "../panels/PanelShell";
 import { buildCoverPdf, fileToBytes, bytesToBlob } from "../../../lib/pdfEngine";
-import { readNumberInput } from "../../../lib/paperSizes";
 import { estimateSpineWidthMm, leavesFor } from "../../../lib/spine";
 import toast from "react-hot-toast";
 import type { CoverSettings } from "../../../types";
@@ -116,12 +115,11 @@ export default function CoverView() {
                 <input readOnly value={activeBookSize.height} className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800" />
               </Field>
               <Field label="Spine Width (mm)">
-                <input
-                  type="number"
-                  min={0}
+                <NumberBox
                   value={state.cover.spineWidthMm}
-                  onChange={(e) => dispatch({ type: "SET_COVER", cover: { spineWidthMm: readNumberInput(e.target.value, { fallback: state.cover.spineWidthMm, min: 0, max: 200 }) } })}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  range={{ min: 0, max: 200 }}
+                  ariaLabel="Spine width in millimetres"
+                  onCommit={(spineWidthMm) => dispatch({ type: "SET_COVER", cover: { spineWidthMm } })}
                 />
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                   <span>
@@ -139,12 +137,11 @@ export default function CoverView() {
                 </div>
               </Field>
               <Field label="Bleed (mm)">
-                <input
-                  type="number"
-                  min={0}
+                <NumberBox
                   value={state.cover.bleedMm}
-                  onChange={(e) => dispatch({ type: "SET_COVER", cover: { bleedMm: readNumberInput(e.target.value, { fallback: state.cover.bleedMm, min: 0, max: 50 }) } })}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  range={{ min: 0, max: 50 }}
+                  ariaLabel="Cover bleed in millimetres"
+                  onCommit={(bleedMm) => dispatch({ type: "SET_COVER", cover: { bleedMm } })}
                 />
               </Field>
             </div>

@@ -1,4 +1,5 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { commitDraftNumber, NumberFieldRange } from "../../../lib/numberField";
 
 export function PanelSection({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -64,5 +65,93 @@ export function Checkbox({
       />
       {label}
     </label>
+  );
+}
+
+/**
+ * Numeric text field that keeps a local draft while focused.
+ *
+ * `NumberInput` is a controlled `type="number"` box: every keystroke went
+ * through the range clamp, so a field with a minimum of 20 could never be typed
+ * into from scratch (2 -> 20, then 201...). Same styling, but the draft text
+ * survives until the value is actually committed on blur or Enter.
+ */
+export function NumberBox({
+  value,
+  onCommit,
+  range,
+  ariaLabel,
+}: {
+  value: number;
+  onCommit: (next: number) => void;
+  range: NumberFieldRange;
+  ariaLabel?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+  // Keep the shown value in sync when state changes from the outside (preset
+  // switch, "Pakai" button, project restore) but never fight the user's cursor.
+  useEffect(() => {
+    if (draft !== null && ref.current && document.activeElement !== ref.current) setDraft(null);
+  }, [value, draft]);
+
+  const shown = draft ?? String(value);
+  const commit = (live: boolean) => {
+    const next = commitDraftNumber(draft ?? "", { ...range, current: value, live });
+    if (next !== null && next !== value) onCommit(next);
+  };
+
+  return (
+    <input
+      ref={ref}
+      type="text"
+      inputMode="decimal"
+      aria-label={ariaLabel}
+      value={shown}
+      onFocus={() => setDraft(String(value))}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const next = commitDraftNumber(e.target.value, { ...range, current: value, live: true });
+        if (next !== null && next !== value) onCommit(next);
+      }}
+      onBlur={() => {
+        commit(false);
+        setDraft(null);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          commit(false);
+          setDraft(null);
+          e.currentTarget.blur();
+        }
+        if (e.key === "Escape") {
+          setDraft(null);
+          e.currentTarget.blur();
+        }
+      }}
+      onWheel={(e) => {
+        // Do not let mouse-wheel interactions accidentally change numeric settings.
+        e.currentTarget.blur();
+      }}
+      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+    />
+  );
+}
+
+export function NumberField({
+  label,
+  value,
+  onCommit,
+  range,
+}: {
+  label: string;
+  value: number;
+  onCommit: (next: number) => void;
+  range: NumberFieldRange;
+}) {
+  return (
+    <Field label={label}>
+      <NumberBox value={value} onCommit={onCommit} range={range} ariaLabel={label} />
+    </Field>
   );
 }

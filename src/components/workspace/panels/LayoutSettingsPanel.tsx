@@ -1,8 +1,7 @@
 import { useProject } from "../../../state/ProjectContext";
 import { BindingType, Orientation } from "../../../types";
-import { PanelSection, Field, Select, NumberInput } from "./PanelShell";
+import { PanelSection, Select, NumberField } from "./PanelShell";
 import { blankPagesNeeded, computeSignatureRanges, padToMultiple } from "../../../lib/imposition";
-import { readNumberInput } from "../../../lib/paperSizes";
 import { Info } from "lucide-react";
 
 const BINDINGS: { key: BindingType; label: string; desc: string }[] = [
@@ -64,14 +63,12 @@ export default function LayoutSettingsPanel() {
               </button>
             ))}
           </div>
-          <Field label="Custom Signature Size">
-            <NumberInput
-              min={4}
-              step={4}
-              value={state.signatureSize}
-              onChange={(e) => dispatch({ type: "SET_SIGNATURE_SIZE", size: readNumberInput(e.target.value, { fallback: 4, min: 4, max: 200 }) })}
-            />
-          </Field>
+          <NumberField
+            label="Custom Signature Size"
+            value={state.signatureSize}
+            range={{ min: 4, max: 200 }}
+            onCommit={(size) => dispatch({ type: "SET_SIGNATURE_SIZE", size })}
+          />
         </PanelSection>
       )}
 

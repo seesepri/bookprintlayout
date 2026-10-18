@@ -170,17 +170,36 @@ npm run build       # typecheck && vite build  -> dist/index.html
 npm run preview     # serve hasil build
 ```
 
-Build menghasilkan **satu file** `dist/index.html` (~3,49 MB, ±902 KB gzip) karena
-`vite-plugin-singlefile` meng-inline JS, CSS, dan worker pdf.js. Worker di-inline sebagai string
-lalu dijadikan Blob URL saat runtime supaya tetap jalan di mode single-file.
+Build menghasilkan **satu file** `dist/index.html` (~3,56 MB, ±925 KB gzip; `gzip -c` =
+920.886 B) karena `vite-plugin-singlefile` meng-inline JS, CSS, dan worker pdf.js. Worker
+di-inline sebagai string lalu dijadikan Blob URL saat runtime supaya tetap jalan di mode
+single-file.
+
+### Bundler: Vite 8 = Rolldown, bukan Rollup
+
+Vite 8 memindah bundler ke Rolldown + oxc. Yang perlu lo tahu waktu ngutak-atik build:
+
+- **Floor browser sekarang nempel di `build.target`, bukan di nama browser.** `vite.config.ts`
+  mem-pin `target: "es2020"`. Kalau dibiarkan default (`"baseline-widely-available"`), floor-nya
+  ikut maju tiap rilis Vite — bundle mengecil 10,4 KB, tapi browser yang bisa buka app ikut
+  berubah tanpa ada yang mutusin itu di repo.
+- **`build.target: "chrome107,firefox104,safari16"` diterima tipe lalu DIABAIKAN diam-diam.**
+  Sudah diuji: jumlah class field privat yang diturunkan identik dengan build default (220 vs
+  221), sedangkan `es2020` menurunkan ke 119. Jadi kalau butuh floor, pakai `esNNNN`.
+- **Praktis:** `npm run build` sekarang ±1,3 detik (Vite 7 ±6-7 detik, diukur di mesin yang sama).
+  Config lama tetap kebaca: `build.rollupOptions` di Vite 8 adalah **alias yang sudah
+  di-deprecated** untuk `build.rolldownOptions` dengan bentuk yang sama, jadi dia nggak hilang —
+  tapi jangan nulis yang baru di situ. Yang nggak bisa lagi: `output.format`, `output.sourcemap`,
+  `output.dir`, `output.banner` (dikecualikan dari tipenya), dan `commonjsOptions` sekarang no-op.
 
 `typecheck` sengaja dijalankan lebih dulu oleh `build`: Vite hanya membuang annotation tipe, tidak
 memeriksanya, jadi tanpa ini repo bisa "build sukses" dalam keadaan rusak tipe.
 
 Node **22.22.2 ke atas** (atau 24.15+/26+) diperlukan. `engines` di package.json menyalin rentang
 `jsdom@30`, yang paling mengikat di antara dependensi — `pdfjs-dist@6` hanya minta &ge;22.13 dan
-Vite 7 minta ^20.19 || &ge;22.12. Batas ditulis seketat itu supaya salah versi Node kelihatan waktu
-`npm ci`, bukan sebagai empat berkas tes yang diam-diam tidak jalan.
+Vite 8 minta ^20.19 || &ge;22.12 — sama seperti Vite 7, jadi naiknya bundler tidak ikut naikin
+floor. Batas ditulis seketat itu supaya salah versi Node kelihatan waktu `npm ci`, bukan sebagai
+empat berkas tes yang diam-diam tidak jalan.
 
 Sebagian besar dependensi dipin presisi; `lucide-react`, `react-hot-toast`, dan `pdf-lib` memakai
 rentang `^` — `package-lock.json` yang mengunci versinya, jadi `npm ci` tetap replikabel.
@@ -211,9 +230,9 @@ sebagai static assets.
 
 ### Menaikkan pdf.js
 
-`pdfjs-dist` dipin ke **6.2.108**. Versi itu adalah rilis pertama yang menambal
-CVE-2026-16633 (JavaScript di dalam PDF bisa dieksekusi saat file dibuka — dan dokumen buatan
-orang lain adalah input utama aplikasi ini). pdf.js 6 menghapus `PDFScriptingManager` dari core,
+`pdfjs-dist` dipin ke **6.4.299**, dan pin itu tidak boleh turun di bawah **6.2.108** — versi
+terakhir yang menambal CVE-2026-16633 (JavaScript di dalam PDF bisa dieksekusi saat file dibuka —
+dan dokumen buatan orang lain adalah input utama aplikasi ini). pdf.js 6 menghapus `PDFScriptingManager` dari core,
 jadi tidak ada lagi `enableScripting` untuk dimatikan: kemampuannya memang hilang.
 
 Catatan kalau Anda turun ke 5.x atau naik major lagi:

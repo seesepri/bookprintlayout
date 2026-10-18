@@ -112,6 +112,40 @@ export function computePerfectBindingSheets(
   return sheets;
 }
 
+/**
+ * A folded sheet carrying two spreads per side: the top band is one sheet of the
+ * normal booklet plan, the bottom band the next one.
+ *
+ * Page order is never re-derived here — it is whatever `computeBookletSheets`
+ * already produces, which is the layout every existing booklet prints with. The
+ * only new thing is that two of those sheets share a physical sheet, so the
+ * total drops by half and the printer folds once along the vertical line.
+ */
+export function computeBookletQuadSheets(
+  totalPages: number,
+  bindingDirection: BindingDirection = "left"
+): Sheet[] {
+  // Two booklet sheets per physical sheet, and a booklet sheet is 4 pages, so a
+  // quad sheet is 8: pad to that and every sheet really does have a bottom band.
+  const padded = padToMultiple(Math.max(0, Math.floor(totalPages)), 8);
+  const base = computeBookletSheets(padded, 1, 0, bindingDirection);
+  const sheets: Sheet[] = [];
+  for (let i = 0; i < base.length; i += 2) {
+    const top = base[i];
+    const bottom = base[i + 1] ?? top;
+    sheets.push({
+      index: sheets.length,
+      signature: 1,
+      slotsPerSide: 4,
+      front: top.front,
+      back: top.back,
+      frontSlots: [top.front.left, top.front.right, bottom.front.left, bottom.front.right],
+      backSlots: [top.back.left, top.back.right, bottom.back.left, bottom.back.right],
+    });
+  }
+  return sheets;
+}
+
 export function computeSignatureRanges(totalPages: number, sigSize: number): SignatureRange[] {
   const safeSize = Math.max(4, Math.floor(sigSize / 4) * 4);
   const ranges: SignatureRange[] = [];
@@ -173,6 +207,21 @@ export function planImposition(
     }
 
     return { paddedTotal, sheets, signatures, signatureSheetCounts };
+  }
+
+  const slots = Math.max(2, Math.floor(options.slotsPerSide ?? 2));
+  // `signature` never reaches here: it returns above, and nup.ts keeps it on a
+  // spread. So a folded 4-up is exactly booklet / saddle-stitch.
+  if (slots === 4) {
+    const sheets = computeBookletQuadSheets(totalPages, bindingDirection);
+    const paddedTotal = sheets.length * 8;
+    return {
+      paddedTotal,
+      sheets,
+      slotsPerSide: 4,
+      signatures: totalPages ? [{ index: 1, startPage: 1, endPage: totalPages, pageCount: totalPages }] : [],
+      signatureSheetCounts: { 1: sheets.length },
+    };
   }
 
   const paddedTotal = padToMultiple(totalPages, 4);

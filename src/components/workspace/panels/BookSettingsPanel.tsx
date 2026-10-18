@@ -47,6 +47,8 @@ export default function BookSettingsPanel() {
     gutterMm: state.binding === "perfect-binding" ? Math.max(0, state.gutterMm) : 0,
   };
   const quadNeed = gridSheetSize(activeBookSize, { cols: 2, rows: 2 }, { ...quadRoom, marksRoomMm: 0 });
+  const folded = state.binding !== "perfect-binding";
+  const nestedSignature = state.binding === "signature";
   const quadMarksNeed = gridSheetSize(activeBookSize, { cols: 2, rows: 2 }, {
     ...quadRoom,
     marksRoomMm: geometryConstants.cropGapMm + geometryConstants.cropLengthMm,
@@ -124,15 +126,29 @@ export default function BookSettingsPanel() {
             value={state.pagesPerSide}
             onChange={(e) => dispatch({ type: "SET_PAGES_PER_SIDE", value: e.target.value as PagesPerSideSetting })}
           >
-            <option value="auto">Auto — densify when it fits</option>
+            <option value="auto">Auto — {folded ? "2 per sisi (spread)" : "4 per sisi kalau muat"}</option>
             <option value="2">2 per side (side-by-side spread)</option>
-            <option value="4">4 per side (2 × 2 grid)</option>
+            <option value="4" disabled={nestedSignature}>
+              4 per side (2 × 2 grid){folded ? " — head-to-head" : ""}
+            </option>
           </Select>
-          {state.binding !== "perfect-binding" && (
-            <p className="mt-1 text-[11px] text-slate-400">
-              Folded bindings are kept at 2 per side; a 4-up signature needs head-to-head folding plus a cut.
+          {nestedSignature ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+              Binding <b>Signature</b> tetap spread 2 per sisi: lembaran-nya bersarang dan kena creep, jadi menambah
+              slot mengubah lembar mana duduk di mana. Pakai <i>Booklet</i> atau <i>Saddle-stitch</i> untuk 4 per sisi.
             </p>
-          )}
+          ) : folded && layout.slotsPerSide === 2 ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              {state.binding}: 2 per sisi (satu spread per sisi). Pilih <b>4 per side</b> untuk menumpuk dua spread dalam
+              satu lembar {paper.width}×{paper.height} mm — baris atas dicetak kepala-ke-kepala, jadi cukup dilipat
+              sekali di garis tengah tanpa dipotong.
+            </p>
+          ) : folded ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-indigo-500 dark:text-indigo-400">
+              Head-to-head aktif: {layout.slotsPerSide * 2} halaman per lembar (2 spread per sisi), baris atas
+              terbalik 180°. Lipat lembar di garis tengah vertikal, urutan baca sudah benar tanpa potong.
+            </p>
+          ) : null}
         </Field>
 
         <Field label="Orientation">

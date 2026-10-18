@@ -24,6 +24,12 @@ export interface GridChoice {
   /** True when a 2x2 grid fits the sheet at all (crop marks aside). */
   quadAvailable: boolean;
   /**
+   * True when the denser grid is a *folded* sheet: the band that folds over the
+   * other one is printed head-to-head (rotated 180° with its columns mirrored),
+   * which is what makes a 4-up signature read in order instead of scrambling it.
+   */
+  headToHead: boolean;
+  /**
    * True when the four-up block was chosen but leaves the crop marks nowhere
    * to go. `drawCropMarks` shortens or skips a mark that has no room, so this
    * is a notice about what the sheet cannot show, not a reason to refuse it.
@@ -55,6 +61,19 @@ export function slotCount(grid: GridSpec): number {
  */
 export function isFoldedBinding(binding: BindingType): boolean {
   return binding !== "perfect-binding";
+}
+
+/**
+ * Folded bindings that can carry a head-to-head four-up sheet.
+ *
+ * `booklet` and `saddle-stitch` are a single fold line, so two half-sheets of
+ * the correct 2-up order can share one physical sheet: fold in half along the
+ * vertical line and both bands land as one booklet, no trimming needed. A
+ * `signature` book is nested and crept across several sheets, where doubling the
+ * density would change which sheet sits where — it stays a spread.
+ */
+export function supportsHeadToHeadQuad(binding: BindingType): boolean {
+  return binding === "booklet" || binding === "saddle-stitch";
 }
 
 /** Sheet size a grid demands, including bleed and the room marks need. */
@@ -103,17 +122,24 @@ export function chooseGrid(
    * while a spread keeps asking for the room marks have always required.
    */
   const quadRoom: GridRoom = { ...room, marksRoomMm: 0 };
-  const quadAvailable = !isFoldedBinding(binding) && gridFits(paper, bookSize, QUAD_GRID, quadRoom);
+  const folded = isFoldedBinding(binding);
+  const quadFits = gridFits(paper, bookSize, QUAD_GRID, quadRoom);
+  // A glued book densifies on its own; a folded one only when the user asked for
+  // it, so no existing project silently changes its sheet.
+  const headToHead = folded && supportsHeadToHeadQuad(binding) && setting === 4 && quadFits;
+  const quadAvailable = (!folded && quadFits) || headToHead;
   const marksClipped = quadAvailable && !gridFits(paper, bookSize, QUAD_GRID, room);
   const decider = (grid: GridSpec, reason: GridReason): GridChoice => ({
     grid,
     slotsPerSide: slotCount(grid),
     reason,
     quadAvailable,
+    headToHead: slotCount(grid) > 2 && folded,
     marksClipped: slotCount(grid) > 2 ? marksClipped : false,
   });
 
-  if (isFoldedBinding(binding)) return decider(PAIR_GRID, "pair-folded");
+  if (headToHead) return decider(QUAD_GRID, "quad-forced");
+  if (folded) return decider(PAIR_GRID, "pair-folded");
   if (setting === 2) return decider(PAIR_GRID, "pair-forced");
   if (setting === 4) return decider(quadAvailable ? QUAD_GRID : PAIR_GRID, quadAvailable ? "quad-forced" : "pair-fits-only");
   return decider(quadAvailable ? QUAD_GRID : PAIR_GRID, quadAvailable ? "quad" : "pair-fits-only");

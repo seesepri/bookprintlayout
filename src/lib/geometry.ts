@@ -1,5 +1,5 @@
 import { BindingType, CreepSettings, MarksSettings, PageInfo, Sheet, SheetSide, SizeMM } from "../types";
-import { GridSpec, PAIR_GRID, gridSheetSize, slotCount, slotIndexFromPosition } from "./nup";
+import { GridSpec, PAIR_GRID, gridSheetSize, isFoldedBinding, slotCount, slotIndexFromPosition } from "./nup";
 import { mmToPt } from "./paperSizes";
 import { computeCreepShiftMm } from "./imposition";
 
@@ -217,12 +217,22 @@ function buildGridGeometry(
   const originX = (paper.width - blockW) / 2;
   const originY = (paper.height - blockH) / 2;
 
+  /*
+   * Head-to-head: the band that folds over the other one has to come off the
+   * press upside down, and a 180° turn of a two-page band also mirrors its
+   * columns, so the page that reads on the left of the booklet sits on the right
+   * of the printed band. The bottom band is the one that stays put.
+   */
+  const headToHead = rows > 1 && isFoldedBinding(binding);
+  const isTopBand = (row: number): boolean => headToHead && row === 0;
+
   // Geometry is millimetres measured from the bottom-left, so visual row 0 has
   // to sit highest on the sheet.
-  const slotTrim = (index: number): RectMM => {
+  const slotTrim = (index: number, colOverride?: number): RectMM => {
     const { col, row } = slotIndexFromPosition(grid, index);
+    const use = colOverride ?? col;
     return rect(
-      originX + col * (bookSize.width + gap),
+      originX + use * (bookSize.width + gap),
       originY + (rows - 1 - row) * bookSize.height,
       bookSize.width,
       bookSize.height
@@ -232,10 +242,11 @@ function buildGridGeometry(
   const sidePlacements = (slots: (number | null)[] | undefined, fallback: SheetSide): PagePlacement[] => {
     const numbers = slots && slots.length === cols * rows ? slots : [fallback.left, fallback.right];
     return numbers.map((pageNumber, index) => {
-      const { col } = slotIndexFromPosition(grid, index);
-      return pagePlacement(
+      const { col, row } = slotIndexFromPosition(grid, index);
+      const flip = isTopBand(row);
+      const placement = pagePlacement(
         pageNumber,
-        slotTrim(index),
+        slotTrim(index, flip ? cols - 1 - col : col),
         bleedMm,
         gutterMm,
         safeAreaMm,
@@ -244,6 +255,11 @@ function buildGridGeometry(
         pages,
         0
       );
+      // The page's own rotation (from the page browser) stays; the band turn is
+      // added on top of it, and both the renderer and the exporter read this one.
+      return flip
+        ? { ...placement, rotation: (((placement.rotation + 180) % 360) as PagePlacement["rotation"]) }
+        : placement;
     });
   };
 

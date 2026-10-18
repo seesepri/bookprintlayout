@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computePerfectBindingSheets, planImposition } from "./imposition";
 import { buildSheetGeometry, validateImposition } from "./geometry";
 import { QUAD_GRID } from "./nup";
-import { hiResWidthFor, shouldRenderHiRes } from "./previewHelpers";
+import { hiResWidthFor, shouldRenderHiRes, thumbnailFormatFor } from "./previewHelpers";
 import type { MarksSettings, PageInfo } from "../types";
 
 const A5 = { width: 148, height: 210 };
@@ -52,11 +52,28 @@ describe("perfect binding with four slots per side", () => {
     expect(computePerfectBindingSheets(8, "right", 4)[0].frontSlots).toEqual([4, 3, 2, 1]);
   });
 
-  it("leaves a folded binding alone even when asked for four slots", () => {
+  it("densifies a folded binding only on an explicit request, by stacking two known-good spreads", () => {
     const plan = planImposition(16, "booklet", 16, "left", { slotsPerSide: 4 });
-    expect(plan.sheets).toHaveLength(4);
-    expect(plan.sheets[0].frontSlots).toBeUndefined();
+    // 8 pages per sheet instead of 4, so 16 pages need 2 sheets.
+    expect(plan.sheets).toHaveLength(2);
+    expect(plan.paddedTotal).toBe(16);
+    // Band atas = spread sheet 2-up pertama, band bawah = sheet keduanya,
+    // persis seperti computeBookletSheets — tidak ada urutan yang dikarang ulang.
+    expect(plan.sheets[0].frontSlots).toEqual([16, 1, 14, 3]);
+    expect(plan.sheets[0].backSlots).toEqual([2, 15, 4, 13]);
+    // The spread fields still read the old way for anything that only knows 2-up.
     expect(plan.sheets[0].front).toEqual({ left: 16, right: 1 });
+    // A padded count that is not a multiple of 8 gets blank pages, never a sheet
+    // with one band missing.
+    const odd = planImposition(28, "saddle-stitch", 16, "left", { slotsPerSide: 4 });
+    expect(odd.sheets).toHaveLength(4);
+    expect(odd.paddedTotal).toBe(32);
+    expect(odd.sheets.every((s) => s.frontSlots?.length === 4)).toBe(true);
+  });
+
+  it("keeps a nested signature book on the spread it has always used", () => {
+    const plan = planImposition(16, "signature", 8, "left", { slotsPerSide: 4 });
+    expect(plan.sheets.every((s) => s.frontSlots === undefined)).toBe(true);
   });
 });
 
@@ -203,7 +220,15 @@ describe("hi-res preview sizing", () => {
   it("asks for what the screen really has, capped", () => {
     // 148 mm of A5 page at 2.6 px/mm, zoom 1, DPR 2 -> 770 px.
     expect(hiResWidthFor(148, 2.6 * 1, 2)).toBe(770);
-    expect(hiResWidthFor(148, 2.6 * 3, 2)).toBe(1800); // capped
+    expect(hiResWidthFor(148, 2.6 * 6, 2)).toBe(2600); // capped
+    // A 1x display still gets 2x the CSS size: at 230 CSS px a 230 px raster is
+    // the thumbnail the preview was supposed to replace, which is why the first
+    // version of this fix left the sheet looking unchanged.
+    expect(hiResWidthFor(148, 1.55, 1)).toBe(459);
+    expect(hiResWidthFor(148, 1.55, 1, 2600, 1)).toBe(230);
+    expect(thumbnailFormatFor(459).format).toBe("png");
+    expect(thumbnailFormatFor(1400).format).toBe("png");
+    expect(thumbnailFormatFor(1401)).toEqual({ format: "jpeg", quality: 0.92 });
     expect(hiResWidthFor(0, 2.6, 2)).toBe(0);
     expect(hiResWidthFor(Number.NaN, 2.6, 2)).toBe(0);
   });

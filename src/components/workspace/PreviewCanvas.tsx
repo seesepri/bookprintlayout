@@ -70,8 +70,15 @@ export default function PreviewCanvas() {
     : 1;
 
   const scale = BASE_PX_PER_MM * state.zoom;
-  const sheetWpx = paper.width * scale;
-  const sheetHpx = paper.height * scale;
+  /**
+   * Snap every box to whole device pixels. At a fractional size the browser
+   * resamples the page raster even when the raster is exactly 1:1, and that
+   * resampling is what reads as "blurry" on an otherwise sharp render.
+   */
+  const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+  const snap = (px: number) => Math.round(px * dpr) / dpr;
+  const sheetWpx = snap(paper.width * scale);
+  const sheetHpx = snap(paper.height * scale);
 
   const isFolded = state.binding !== "perfect-binding";
 
@@ -213,12 +220,12 @@ export default function PreviewCanvas() {
   const renderPlacement = (placement: PagePlacement) => {
     const info = getPageThumb(state.pages, placement.pageNumber);
     const artworkUrl = (placement.pageNumber ? sharp[placement.pageNumber]?.url : undefined) ?? info?.thumbnail;
-    const x = placement.bleed.x * scale;
-    const y = (paper.height - placement.bleed.y - placement.bleed.height) * scale;
-    const width = placement.bleed.width * scale;
-    const height = placement.bleed.height * scale;
-    const trimLeft = (placement.trim.x - placement.bleed.x) * scale;
-    const trimTop = (placement.bleed.y + placement.bleed.height - placement.trim.y - placement.trim.height) * scale;
+    const x = snap(placement.bleed.x * scale);
+    const y = snap((paper.height - placement.bleed.y - placement.bleed.height) * scale);
+    const width = snap(placement.bleed.width * scale);
+    const height = snap(placement.bleed.height * scale);
+    const trimLeft = snap((placement.trim.x - placement.bleed.x) * scale);
+    const trimTop = snap((placement.bleed.y + placement.bleed.height - placement.trim.y - placement.trim.height) * scale);
     const rotatedW = placement.rotation === 90 || placement.rotation === 270 ? info?.heightPt ?? 0 : info?.widthPt ?? 0;
     const rotatedH = placement.rotation === 90 || placement.rotation === 270 ? info?.widthPt ?? 0 : info?.heightPt ?? 0;
     const sourceHasBleed = !!info && (rotatedW > placement.trim.width * 72 / 25.4 + 0.25 || rotatedH > placement.trim.height * 72 / 25.4 + 0.25);
@@ -231,7 +238,7 @@ export default function PreviewCanvas() {
       >
         <div
           className="absolute border border-slate-300 bg-white dark:border-slate-700"
-          style={{ left: trimLeft, top: trimTop, width: placement.trim.width * scale, height: placement.trim.height * scale }}
+          style={{ left: trimLeft, top: trimTop, width: snap(placement.trim.width * scale), height: snap(placement.trim.height * scale) }}
         >
           {artworkUrl ? (
             <div
@@ -239,8 +246,8 @@ export default function PreviewCanvas() {
               style={{
                 left: sourceHasBleed ? -trimLeft : 0,
                 top: sourceHasBleed ? -trimTop : 0,
-                width: sourceHasBleed ? width : placement.trim.width * scale,
-                height: sourceHasBleed ? height : placement.trim.height * scale,
+                width: sourceHasBleed ? width : snap(placement.trim.width * scale),
+                height: sourceHasBleed ? height : snap(placement.trim.height * scale),
               }}
             >
               <img

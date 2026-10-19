@@ -32,6 +32,8 @@ export interface ProjectState {
   paperSizeCustom: SizeMM;
   /** Pages-per-side density for the print sheet. "auto" keeps the classic spread on folded bindings. */
   pagesPerSide: PagesPerSideSetting;
+  /** 4-up folded sheets: top band upside down (head-to-head) or upright for a manual cut-and-turn. */
+  quadHeadToHead: boolean;
   orientation: Orientation;
 
   binding: BindingType;
@@ -66,6 +68,7 @@ export type Action =
   | { type: "SET_PAPER_SIZE_PRESET"; preset: PresetPaperSize }
   | { type: "SET_PAPER_SIZE_CUSTOM"; size: SizeMM }
   | { type: "SET_PAGES_PER_SIDE"; value: PagesPerSideSetting }
+  | { type: "SET_QUAD_HEAD_TO_HEAD"; value: boolean }
   | { type: "SET_ORIENTATION"; orientation: Orientation }
   | { type: "SET_BINDING"; binding: BindingType }
   | { type: "SET_BINDING_DIRECTION"; direction: BindingDirection }
@@ -105,6 +108,7 @@ export const initialState: ProjectState = {
   paperSizePreset: "A4",
   paperSizeCustom: { ...PAPER_SIZE_PRESETS.A4 },
   pagesPerSide: "auto",
+  quadHeadToHead: true,
   orientation: "auto",
 
   binding: "booklet",
@@ -175,6 +179,8 @@ function reducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, paperSizeCustom: action.size, generatedPdf: null };
     case "SET_PAGES_PER_SIDE":
       return { ...state, pagesPerSide: normalizePagesPerSide(action.value), generatedPdf: null };
+    case "SET_QUAD_HEAD_TO_HEAD":
+      return { ...state, quadHeadToHead: action.value, generatedPdf: null };
     case "SET_ORIENTATION":
       return { ...state, orientation: action.orientation, generatedPdf: null };
     case "SET_BINDING":

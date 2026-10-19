@@ -128,6 +128,7 @@ export default function PreviewCanvas() {
       creep: state.creep,
       signatureSheetCount: signatureSheetCountOfSheet,
       grid: layout.grid,
+      quadHeadToHead: state.quadHeadToHead,
     });
   }, [
     plan.sheets,
@@ -144,6 +145,7 @@ export default function PreviewCanvas() {
     state.creep,
     signatureSheetCountOfSheet,
     layout.grid,
+    state.quadHeadToHead,
   ]);
 
   const sidePlacements: PagePlacement[] = useMemo(() => {
@@ -489,6 +491,14 @@ export default function PreviewCanvas() {
                     {state.marks.showCenterLine && (
                       <div className="pointer-events-none absolute left-1/2 top-0 h-full border-l border-dashed border-slate-700" />
                     )}
+                    {state.marks.showCropMarks &&
+                      geometry?.cutLines?.map((y, i) => (
+                        <div
+                          key={`cut-${i}`}
+                          className="pointer-events-none absolute left-0 z-10 w-full border-t border-dashed border-amber-500"
+                          style={{ top: (paper.height - y) * scale }}
+                        />
+                      ))}
                     {state.marks.showCropMarks && geometry && (
                       <>
                         {geometry.cropMarks.map((mark, i) => {

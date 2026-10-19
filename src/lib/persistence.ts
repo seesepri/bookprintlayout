@@ -51,6 +51,7 @@ type SavedState = {
   | "paperSizePreset"
   | "paperSizeCustom"
   | "pagesPerSide"
+  | "quadHeadToHead"
   | "orientation"
   | "binding"
   | "bindingDirection"
@@ -97,6 +98,7 @@ export function toSavedState(state: ProjectState): SavedState {
     paperSizePreset: state.paperSizePreset,
     paperSizeCustom: state.paperSizeCustom,
     pagesPerSide: state.pagesPerSide,
+    quadHeadToHead: state.quadHeadToHead,
     orientation: state.orientation,
     binding: state.binding,
     bindingDirection: state.bindingDirection,
@@ -212,6 +214,7 @@ export function mergeRestoredState(saved: SavedState): ProjectState {
     // Saves written before the coercion existed can hold "4"/"2" strings, which
     // would silently fall back to the spread.
     pagesPerSide: normalizePagesPerSide(settings.pagesPerSide),
+    quadHeadToHead: settings.quadHeadToHead !== false,
     meta,
     sourceBytes,
     pages,

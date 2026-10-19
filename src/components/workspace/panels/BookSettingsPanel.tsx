@@ -144,11 +144,29 @@ export default function BookSettingsPanel() {
             </p>
           ) : folded ? (
             <p className="mt-1 text-[11px] leading-relaxed text-indigo-500 dark:text-indigo-400">
-              Head-to-head aktif: {layout.slotsPerSide * 2} halaman per lembar (2 spread per sisi), baris atas
-              terbalik 180°. Lipat lembar di garis tengah vertikal, urutan baca sudah benar tanpa potong.
+              {state.quadHeadToHead
+                ? `Head-to-head aktif: ${layout.slotsPerSide * 2} halaman per lembar (2 spread per sisi), baris atas terbalik 180°. Lipat lembar di garis tengah vertikal, urutan baca sudah benar tanpa potong.`
+                : `Baris atas dicetak tegak: ${layout.slotsPerSide * 2} halaman per lembar. Potong di garis potong horizontal, lalu putar salah satu bagian 180° sebelum dilipat.`}
             </p>
           ) : null}
         </Field>
+
+        {folded && layout.slotsPerSide > 2 && (
+          <Field label="Baris atas">
+            <Select
+              value={state.quadHeadToHead ? "head-to-head" : "upright"}
+              onChange={(e) => dispatch({ type: "SET_QUAD_HEAD_TO_HEAD", value: e.target.value === "head-to-head" })}
+            >
+              <option value="head-to-head">Head-to-head — lipat sekali, tanpa potong</option>
+              <option value="upright">Tegak — potong tengah, saya balik sendiri</option>
+            </Select>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              {state.quadHeadToHead
+                ? "Baris atas diputar 180° supaya kedua band bertemu kepala-ke-kepala."
+                : "Kedua baris dicetak tegak. Garis potong horizontal (putus-putus amber) dicetak di batas baris; garis lipat vertikal tetap ungu."}
+            </p>
+          </Field>
+        )}
 
         <Field label="Orientation">
           <Select

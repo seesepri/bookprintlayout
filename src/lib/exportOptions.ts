@@ -28,6 +28,8 @@ export interface ResolvedExportOptions {
   grid: GridSpec;
   slotsPerSide: number;
   layoutReason: GridReason;
+  /** 4-up folded sheets: rotate the top band head-to-head. */
+  quadHeadToHead: boolean;
 }
 
 export function resolveExportOptions(
@@ -101,6 +103,7 @@ export function resolveExportOptions(
     grid: layout.grid,
     slotsPerSide: layout.slotsPerSide,
     layoutReason: layout.reason,
+    quadHeadToHead: state.quadHeadToHead,
   };
 }
 

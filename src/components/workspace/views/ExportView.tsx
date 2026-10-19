@@ -69,6 +69,7 @@ export default function ExportView() {
         bookSize: activeBookSize,
         paperSize: paper,
         grid: resolved.grid,
+        quadHeadToHead: resolved.quadHeadToHead,
         bleedMm: resolved.bleedMm,
         safeAreaMm: resolved.safeAreaMm,
         gutterMm: resolved.gutterMm,

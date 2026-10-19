@@ -31,6 +31,8 @@ export interface SheetGeometry {
   front: { left: PagePlacement; right: PagePlacement };
   back: { left: PagePlacement; right: PagePlacement };
   cropMarks: CropMarkGeometry[];
+  /** Internal row boundaries (mm from the bottom) — cut lines on a denser grid. */
+  cutLines?: number[];
   cropGapMm: number;
   cropLengthMm: number;
   foldX: number;
@@ -118,6 +120,12 @@ export function buildSheetGeometry(params: {
   signatureSheetCount?: number;
   /** Pages-per-side grid. Defaults to the classic 2x1 spread. */
   grid?: GridSpec;
+  /**
+   * Denser folded sheets: turn the top band 180° so both bands meet head to
+   * head and one fold binds them. False prints the band upright instead, for
+   * shops that guillotine the sheet and rotate the halves by hand.
+   */
+  quadHeadToHead?: boolean;
 }): SheetGeometry {
   const grid = params.grid ?? PAIR_GRID;
   if (slotCount(grid) > 2) return buildGridGeometry({ ...params, grid }, grid);
@@ -208,7 +216,18 @@ function buildGridGeometry(
   params: Parameters<typeof buildSheetGeometry>[0] & { grid: GridSpec },
   grid: GridSpec
 ): SheetGeometry {
-  const { sheet, paper, bookSize, bleedMm, gutterMm, safeAreaMm, binding, bindingDirection = "left", pages } = params;
+  const {
+    sheet,
+    paper,
+    bookSize,
+    bleedMm,
+    gutterMm,
+    safeAreaMm,
+    binding,
+    bindingDirection = "left",
+    pages,
+    quadHeadToHead = true,
+  } = params;
   const cols = Math.max(1, grid.cols);
   const rows = Math.max(1, grid.rows);
   const gap = binding === "perfect-binding" ? Math.max(0, gutterMm) : 0;
@@ -223,7 +242,7 @@ function buildGridGeometry(
    * columns, so the page that reads on the left of the booklet sits on the right
    * of the printed band. The bottom band is the one that stays put.
    */
-  const headToHead = rows > 1 && isFoldedBinding(binding);
+  const headToHead = rows > 1 && isFoldedBinding(binding) && quadHeadToHead;
   const isTopBand = (row: number): boolean => headToHead && row === 0;
 
   // Geometry is millimetres measured from the bottom-left, so visual row 0 has
@@ -274,8 +293,10 @@ function buildGridGeometry(
     { x: originX, y: originY, dx: -1, dy: 1 },
     { x: originX + blockW, y: originY, dx: 1, dy: 1 },
   ];
+  const cutLines: number[] = [];
   for (let r = 1; r < rows; r++) {
     const y = originY + r * bookSize.height;
+    cutLines.push(y);
     cropMarks.push({ x: originX, y, dx: -1, dy: 0 }, { x: originX + blockW, y, dx: 1, dy: 0 });
   }
 
@@ -286,6 +307,7 @@ function buildGridGeometry(
     frontSlots: front,
     backSlots: back,
     cropMarks,
+    cutLines,
     cropGapMm: CROP_GAP_MM,
     cropLengthMm: CROP_LENGTH_MM,
     foldX: originX + blockW / 2,

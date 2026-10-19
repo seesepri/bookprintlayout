@@ -33,6 +33,8 @@ export interface BuildImpositionParams {
   mode?: ExportFormat;
   /** Pages-per-side grid; 2x1 (default) is the classic side-by-side spread. */
   grid?: GridSpec;
+  /** 4-up folded sheets: turn the top band head-to-head (default) or print it upright. */
+  quadHeadToHead?: boolean;
   /** Object-stream compression on save. Defaults to true. */
   compress?: boolean;
 }
@@ -42,6 +44,7 @@ const SAFE_COLOR = rgb(0.2, 0.55, 0.95);
 const BLEED_COLOR = rgb(0.9, 0.2, 0.25);
 const FOLD_COLOR = rgb(0.45, 0.35, 0.85);
 const CENTER_COLOR = rgb(0.35, 0.35, 0.35);
+const CUT_COLOR = rgb(0.55, 0.4, 0.1);
 const CROP_GAP_MM = 2;
 const CROP_LENGTH_MM = 5;
 
@@ -261,6 +264,7 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
     mode = "print-ready",
     compress = true,
     grid = PAIR_GRID,
+    quadHeadToHead = true,
   } = params;
   const slotsPerSide = slotCount(grid);
 
@@ -322,6 +326,17 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
     });
 
     if (outputMarks.showCropMarks) drawCropMarks(page, geometry.cropMarks, mmToPt(CROP_GAP_MM), mmToPt(CROP_LENGTH_MM));
+    // The sheet is guillotined along every internal row boundary, so the fold
+    // line and the cut line must be tellable apart at a glance.
+    for (const y of geometry.cutLines ?? []) {
+      page.drawLine({
+        start: { x: 0, y: mmToPt(y) },
+        end: { x: sheetWidthPt, y: mmToPt(y) },
+        thickness: 0.35,
+        color: CUT_COLOR,
+        dashArray: [4, 3],
+      });
+    }
     if (outputMarks.showRegistrationMarks) drawRegistrationMarks(page, sheetWidthPt, sheetHeightPt, regInsetPt);
     if (outputMarks.showCenterLine) {
       page.drawLine({
@@ -369,6 +384,7 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
       creep,
       signatureSheetCount: plan.signatureSheetCounts[sheet.signature] ?? 1,
       grid,
+      quadHeadToHead,
     });
 
     drawSide(geometry, geometry.frontSlots ?? [geometry.front.left, geometry.front.right], sidePages(sheet, "front"));

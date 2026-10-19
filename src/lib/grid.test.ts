@@ -241,3 +241,50 @@ describe("hi-res preview sizing", () => {
     expect(shouldRenderHiRes(500, 0)).toBe(false);
   });
 });
+
+describe("4-up head-to-head: the band turn is a setting, not a given", () => {
+  const base = {
+    paper: { width: 324, height: 484 },
+    bookSize: A5,
+    bleedMm: 0,
+    gutterMm: 0,
+    safeAreaMm: 0,
+    binding: "booklet" as const,
+    pages: pages(24),
+    marks: MARKS_ON,
+  };
+  const sheet = planImposition(24, "booklet", 16, "left", { slotsPerSide: 4 }).sheets[0];
+
+  it("defaults to head-to-head: top band upside down, columns mirrored", () => {
+    const g = buildSheetGeometry({ ...base, sheet, grid: QUAD_GRID });
+    const top = (g.frontSlots ?? []).slice(0, 2);
+    expect(top.map((p) => p.pageNumber)).toEqual([24, 1]);
+    expect(top.map((p) => p.rotation)).toEqual([180, 180]);
+    // 24 mirrored to the right column, 1 to the left.
+    expect(top[0].trim.x).toBe(162);
+    expect(top[1].trim.x).toBe(14);
+    expect(g.cutLines).toEqual([242]);
+  });
+
+  it("prints the band upright, still in reading order, when asked", () => {
+    const g = buildSheetGeometry({ ...base, sheet, grid: QUAD_GRID, quadHeadToHead: false });
+    const top = (g.frontSlots ?? []).slice(0, 2);
+    expect(top.map((p) => p.pageNumber)).toEqual([24, 1]);
+    expect(top.map((p) => p.rotation)).toEqual([0, 0]);
+    // Upright means the mirror is gone with the rotation: 24 left, 1 right.
+    expect(top[0].trim.x).toBe(14);
+    expect(top[1].trim.x).toBe(162);
+    // Same block, same fold, same cut line: only the turn changed.
+    const h = buildSheetGeometry({ ...base, sheet, grid: QUAD_GRID });
+    expect(g.foldX).toBe(h.foldX);
+    expect(g.cutLines).toEqual(h.cutLines);
+    expect(g.cropMarks).toEqual(h.cropMarks);
+  });
+
+  it("leaves the pair spread without cut lines", () => {
+    const pair = planImposition(8, "booklet", 16, "left", { slotsPerSide: 2 }).sheets[0];
+    const g = buildSheetGeometry({ ...base, sheet: pair });
+    expect(g.cutLines).toBeUndefined();
+  });
+});
+

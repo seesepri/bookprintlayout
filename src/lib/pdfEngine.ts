@@ -407,7 +407,94 @@ export interface BuildCoverParams {
   compress?: boolean;
 }
 
-export async function buildCoverPdf(params: BuildCoverParams): Promise<Uint8Array> {
+export type CoverSlot = "back" | "spine" | "front";
+
+/**
+ * Something about the supplied artwork the user has to know before sending the
+ * file out. The cover path is the one place where a silent guess costs paper:
+ * an ignored second page or an artwork that never had bleed both look like a
+ * perfect preview and a ruined print run.
+ */
+export interface CoverNote {
+  slot: CoverSlot;
+  kind: "extra-pages" | "no-bleed";
+  message: string;
+}
+
+export interface CoverBuildResult {
+  bytes: Uint8Array;
+  /** Empty when every slot was used exactly as supplied. */
+  notes: CoverNote[];
+}
+
+/** Bleed allowed on each side of a slot; the middle edges have none. */
+export interface CoverEdges {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+export interface CoverFitInput {
+  /** Artwork size in points, as embedded. */
+  artworkW: number;
+  artworkH: number;
+  /** Trim box of this slot, in points, from the bottom-left of the sheet. */
+  slotX: number;
+  slotY: number;
+  trimW: number;
+  trimH: number;
+  /** Bleed room available on each side of the slot, in points. */
+  bleed: CoverEdges;
+}
+
+export interface CoverFit {
+  x: number;
+  y: number;
+  /** Uniform scale, so the artwork aspect ratio is never changed. */
+  scale: number;
+  /** True when the artwork was placed against the bleed box instead of trim. */
+  usesBleed: boolean;
+}
+
+/** Under this, a difference is rounding, not bleed. */
+const COVER_BLEED_TOLERANCE_PT = 0.5;
+
+/**
+ * Where a cover slot's artwork goes, and how big.
+ *
+ * The rule mirrors the interior sheets: artwork that is larger than the trim
+ * box is carrying its own bleed, so it is fitted to the *bleed* box and hung
+ * over the trim edges; artwork that is trim-sized or smaller is fitted to the
+ * trim box. Fitting everything to trim (the old behaviour) shrank a 148+3 mm
+ * cover down to 148 mm and turned the designer's bleed into a white frame —
+ * the exact opposite of what the "bleed otomatis" promise in the UI says.
+ *
+ * Exported because "artwork with bleed is never scaled down" is worth a direct
+ * test, and because the pure maths is easier to trust than a content stream.
+ */
+export function fitCoverArtwork({ artworkW, artworkH, slotX, slotY, trimW, trimH, bleed }: CoverFitInput): CoverFit {
+  const usesBleed = artworkW > trimW + COVER_BLEED_TOLERANCE_PT || artworkH > trimH + COVER_BLEED_TOLERANCE_PT;
+  const boxW = usesBleed ? trimW + bleed.left + bleed.right : trimW;
+  const boxH = usesBleed ? trimH + bleed.top + bleed.bottom : trimH;
+  const scale = Math.min(boxW / artworkW, boxH / artworkH);
+  const boxX = slotX - (usesBleed ? bleed.left : 0);
+  const boxY = slotY - (usesBleed ? bleed.bottom : 0);
+  return {
+    x: boxX + (boxW - artworkW * scale) / 2,
+    y: boxY + (boxH - artworkH * scale) / 2,
+    scale,
+    usesBleed,
+  };
+}
+
+const COVER_SLOT_LABEL: Record<CoverSlot, string> = {
+  back: "Back cover",
+  spine: "Spine",
+  front: "Front cover",
+};
+
+export async function buildCoverPdf(params: BuildCoverParams): Promise<CoverBuildResult> {
   const {
     bookSize,
     spineWidthMm,
@@ -419,6 +506,7 @@ export async function buildCoverPdf(params: BuildCoverParams): Promise<Uint8Arra
     compress = true,
   } = params;
   const outDoc = await PDFDocument.create();
+  const notes: CoverNote[] = [];
 
   const bleedPt = mmToPt(bleedMm);
   const trimWPt = mmToPt(bookSize.width);
@@ -436,24 +524,54 @@ export async function buildCoverPdf(params: BuildCoverParams): Promise<Uint8Arra
   const frontX0 = spineX0 + spinePt;
   const y0 = bleedPt;
 
-  async function embedAndDraw(bytes: Uint8Array | null | undefined, x0: number, w: number) {
+  // Bleed exists only on the outside of the whole cover: the edge a slot shares
+  // with the spine is a fold, and hanging artwork over it would cover the
+  // neighbouring panel.
+  const edgesFor = (slot: CoverSlot): CoverEdges => ({
+    left: slot === "back" ? bleedPt : 0,
+    right: slot === "front" ? bleedPt : 0,
+    top: bleedPt,
+    bottom: bleedPt,
+  });
+
+  async function embedAndDraw(bytes: Uint8Array | null | undefined, slot: CoverSlot, x0: number, w: number) {
     if (!bytes) return;
     const donor = await PDFDocument.load(bytes);
+    // The page picker does not exist yet, so page 1 is the slot's artwork. Say
+    // so instead of dropping the rest of the file on the floor silently: a two
+    // page cover PDF is a normal thing to upload.
+    if (donor.getPageCount() > 1) {
+      notes.push({
+        slot,
+        kind: "extra-pages",
+        message: `${COVER_SLOT_LABEL[slot]}: PDF berisi ${donor.getPageCount()} halaman — hanya halaman 1 yang dipakai.`,
+      });
+    }
     const [embedded] = await outDoc.embedPdf(donor, [0]);
-    const scale = Math.min(w / embedded.width, trimHPt / embedded.height);
-    const drawW = embedded.width * scale;
-    const drawH = embedded.height * scale;
-    page.drawPage(embedded, {
-      x: x0 + (w - drawW) / 2,
-      y: y0 + (trimHPt - drawH) / 2,
-      xScale: scale,
-      yScale: scale,
+    const fit = fitCoverArtwork({
+      artworkW: embedded.width,
+      artworkH: embedded.height,
+      slotX: x0,
+      slotY: y0,
+      trimW: w,
+      trimH: trimHPt,
+      bleed: edgesFor(slot),
     });
+
+    if (!fit.usesBleed && bleedPt > 0) {
+      notes.push({
+        slot,
+        kind: "no-bleed",
+        message: `${COVER_SLOT_LABEL[slot]}: artwork tidak menyertakan bleed, jadi tepi ${bleedMm} mm akan berwarna putih. Tambahkan ${bleedMm} mm di tiap sisi lalu unggah ulang.`,
+      });
+    }
+
+    page.drawPage(embedded, { x: fit.x, y: fit.y, xScale: fit.scale, yScale: fit.scale });
   }
 
-  await embedAndDraw(backBytes, backX0, trimWPt);
-  await embedAndDraw(spineBytes, spineX0, spinePt);
-  await embedAndDraw(frontBytes, frontX0, trimWPt);
+  await embedAndDraw(backBytes, "back", backX0, trimWPt);
+  await embedAndDraw(spineBytes, "spine", spineX0, spinePt);
+  await embedAndDraw(frontBytes, "front", frontX0, trimWPt);
 
   // Guides
   page.drawLine({
@@ -492,7 +610,7 @@ export async function buildCoverPdf(params: BuildCoverParams): Promise<Uint8Arra
 
   applyPrintIntent(outDoc, false);
 
-  return outDoc.save({ useObjectStreams: compress });
+  return { bytes: await outDoc.save({ useObjectStreams: compress }), notes };
 }
 
 export async function fileToBytes(file: File): Promise<Uint8Array> {

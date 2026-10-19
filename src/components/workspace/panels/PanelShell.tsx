@@ -3,17 +3,21 @@ import { commitDraftNumber, NumberFieldRange } from "../../../lib/numberField";
 
 export function PanelSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="border-b border-slate-200 px-5 py-5 dark:border-slate-800">
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">{title}</h3>
-      <div className="space-y-3">{children}</div>
-    </div>
+    <section className="border-b border-slate-200 px-5 py-5 last:border-b-0 dark:border-slate-800">
+      <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">
+        {title}
+      </h3>
+      <div className="space-y-3.5">{children}</div>
+    </section>
   );
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="mb-1.5 flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+        {label}
+      </span>
       {children}
     </label>
   );
@@ -32,7 +36,7 @@ export function NumberInput(props: React.InputHTMLAttributes<HTMLInputElement>) 
       type="number"
       {...props}
       onWheel={handleWheel}
-      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
     />
   );
 }
@@ -41,7 +45,7 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
     />
   );
 }
@@ -56,7 +60,7 @@ export function Checkbox({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-600 dark:text-slate-300">
+    <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-slate-600 dark:text-slate-300">
       <input
         type="checkbox"
         checked={checked}
@@ -133,7 +137,7 @@ export function NumberBox({
         // Do not let mouse-wheel interactions accidentally change numeric settings.
         e.currentTarget.blur();
       }}
-      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
     />
   );
 }

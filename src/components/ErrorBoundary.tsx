@@ -38,7 +38,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (!this.state.error) return this.props.children;
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 dark:bg-slate-950">
-        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">Terjadi kesalahan</h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Aplikasi berhenti menangani tampilan ini. Layout Anda tersimpan otomatis di browser,

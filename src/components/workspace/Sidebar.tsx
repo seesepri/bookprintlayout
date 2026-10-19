@@ -74,7 +74,7 @@ export default function Sidebar() {
         header, where it stays out of the way of the step list.
       */}
       {collapsed ? (
-        <div className="flex h-14 shrink-0 items-center justify-center border-b border-slate-200">
+        <div className="flex h-14 shrink-0 items-center border-b border-slate-200 px-2.5">
           <button
             onClick={() => setCollapsedForSession(false)}
             aria-label="Buka sidebar"
@@ -115,7 +115,7 @@ export default function Sidebar() {
               title={collapsed ? item.label : undefined}
               className={cn(
                 "workspace-nav-item flex w-full items-center rounded-lg py-2 text-[13px] font-medium transition",
-                collapsed ? "justify-center px-0" : "gap-2.5 px-2.5",
+                collapsed ? "justify-start px-3" : "gap-2.5 px-2.5",
                 active ? "bg-indigo-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
               )}
             >
@@ -138,7 +138,7 @@ export default function Sidebar() {
             title="Proyek Baru"
             className={cn(
               "mt-0.5 flex w-full items-center rounded-lg py-2 text-[13px] font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600",
-              collapsed ? "justify-center px-0" : "gap-2.5 px-2.5"
+              collapsed ? "justify-start px-3" : "gap-2.5 px-2.5"
             )}
           >
             <Plus className="h-4 w-4 shrink-0" />

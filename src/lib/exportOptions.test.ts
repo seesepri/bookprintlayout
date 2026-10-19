@@ -94,3 +94,22 @@ describe("resolveExportOptions", () => {
     expect(resolved.validation.errors.join(" ")).toMatch(/tidak muat pada kertas/);
   });
 });
+
+describe("setting that arrives as a string", () => {
+  it("keeps a folded booklet at 4-up in the export path", () => {
+    // The dropdown stores what <select> gives it ("4"); the export must agree
+    // with the preview instead of silently falling back to a spread.
+    const state = makeState({
+      binding: "booklet",
+      orientation: "portrait" as const,
+      pagesPerSide: "4" as unknown as 4,
+      paperSizePreset: "Custom",
+      paperSizeCustom: { width: 324, height: 484 },
+    });
+    const options = resolveExportOptions(state, BOOK, { width: 324, height: 484 });
+    expect(options.grid).toEqual({ cols: 2, rows: 2 });
+    expect(options.slotsPerSide).toBe(4);
+    expect(options.layoutReason).toBe("quad-forced");
+  });
+});
+

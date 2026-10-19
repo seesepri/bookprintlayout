@@ -7,6 +7,7 @@ import {
   gridSheetSize,
   isFoldedBinding,
   maxRowsThatFit,
+  normalizePagesPerSide,
   slotCount,
   slotIndexFromPosition,
 } from "./nup";
@@ -143,5 +144,47 @@ describe("slotIndexFromPosition", () => {
       { col: 0, row: 1 },
       { col: 1, row: 1 },
     ]);
+  });
+});
+
+describe("normalizePagesPerSide", () => {
+  it("accepts the numbers the type allows", () => {
+    expect([4, 2, "auto"].map(normalizePagesPerSide)).toEqual([4, 2, "auto"]);
+  });
+
+  it("accepts the strings a <select> actually emits", () => {
+    // The bug this exists for: the dropdown showed "4 per side" while the sheet
+    // stayed 2-up, because `"4" === 4` is false.
+    expect(normalizePagesPerSide("4")).toBe(4);
+    expect(normalizePagesPerSide("2")).toBe(2);
+  });
+
+  it("falls back to auto for anything else", () => {
+    expect([undefined, null, "", "quad", 0, 3].map(normalizePagesPerSide)).toEqual([
+      "auto",
+      "auto",
+      "auto",
+      "auto",
+      "auto",
+      2,
+    ]);
+  });
+});
+
+describe("chooseGrid with the raw value a <select> hands over", () => {
+  const room = { bleedMm: 0, gutterMm: 0, marksRoomMm: 0 };
+
+  it("still densifies a folded booklet to 2x2 head-to-head", () => {
+    const choice = chooseGrid({ width: 324, height: 484 }, A5, "booklet", "4" as unknown as 4, room);
+    expect(choice.grid).toEqual(QUAD_GRID);
+    expect(choice.slotsPerSide).toBe(4);
+    expect(choice.reason).toBe("quad-forced");
+    expect(choice.headToHead).toBe(true);
+  });
+
+  it("still honours an explicit 2 on a glued book", () => {
+    const choice = chooseGrid(A3_PORTRAIT, A5, "perfect-binding", "2" as unknown as 2, room);
+    expect(choice.grid).toEqual(PAIR_GRID);
+    expect(choice.reason).toBe("pair-forced");
   });
 });

@@ -1,4 +1,5 @@
 import type { PageInfo, ProjectFileMeta } from "../types";
+import { normalizePagesPerSide } from "./nup";
 import { initialState, type ProjectState } from "../state/ProjectContext";
 
 /**
@@ -208,6 +209,9 @@ export function mergeRestoredState(saved: SavedState): ProjectState {
   return {
     ...initialState,
     ...settings,
+    // Saves written before the coercion existed can hold "4"/"2" strings, which
+    // would silently fall back to the spread.
+    pagesPerSide: normalizePagesPerSide(settings.pagesPerSide),
     meta,
     sourceBytes,
     pages,

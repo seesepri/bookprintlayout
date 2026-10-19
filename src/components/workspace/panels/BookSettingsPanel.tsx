@@ -1,10 +1,9 @@
 import { useMemo } from "react";
 import { useProject } from "../../../state/ProjectContext";
 import { planImposition } from "../../../lib/imposition";
-import { gridSheetSize } from "../../../lib/nup";
+import { gridSheetSize, normalizePagesPerSide } from "../../../lib/nup";
 import { geometryConstants } from "../../../lib/geometry";
 import { orientedPaperSize, resolveSheetLayout } from "../../../lib/previewHelpers";
-import type { PagesPerSideSetting } from "../../../lib/nup";
 import { Orientation, PresetBookSize, PresetPaperSize } from "../../../types";
 import { PanelSection, Field, Select, NumberField } from "./PanelShell";
 
@@ -124,7 +123,7 @@ export default function BookSettingsPanel() {
         <Field label="Pages per sheet side">
           <Select
             value={state.pagesPerSide}
-            onChange={(e) => dispatch({ type: "SET_PAGES_PER_SIDE", value: e.target.value as PagesPerSideSetting })}
+            onChange={(e) => dispatch({ type: "SET_PAGES_PER_SIDE", value: normalizePagesPerSide(e.target.value) })}
           >
             <option value="auto">Auto — {folded ? "2 per sisi (spread)" : "4 per sisi kalau muat"}</option>
             <option value="2">2 per side (side-by-side spread)</option>
@@ -170,10 +169,10 @@ export default function BookSettingsPanel() {
             {layout.grid.rows}) per sisi — {layout.slotsPerSide * 2} halaman per lembar,{" "}
             <b>{sheetCount} lembar</b> untuk {state.pages.length} halaman.
           </p>
-          {layout.reason === "pair-folded" && (
+          {layout.reason === "pair-folded" && !nestedSignature && (
             <p className="text-indigo-500 dark:text-indigo-400">
-              Binding lipatan ({state.binding}) tetap spread 2 halaman: 4-up perlu lipatan head-to-head + potong
-              garis tengah supaya urutan bacanya benar.
+              Satu spread per sisi. Pilih <b>4 per side</b> untuk menumpuk dua spread dalam satu lembar: baris atas
+              dicetak head-to-head, cukup dilipat sekali di garis tengah.
             </p>
           )}
           {layout.reason === "pair-fits-only" && (

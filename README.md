@@ -57,6 +57,7 @@ src/
     imposition.ts     Algoritma inti: booklet order, perfect binding, signature split, creep
     geometry.ts       Perhitungan mm (trim/bleed/safe/crop mark) + validasi
     exportOptions.ts  SATU sumber kebenaran: user settings -> opsi yang dipakai validasi & build
+    plan.ts           Rencana cetak untuk UI (padding/blank/creep) — resolver yang sama dengan engine
     pdfEngine.ts      Generator PDF (pdf-lib): imposition, divider, cover, print intent
     pdfRender.ts      Rendering thumbnail (pdf.js) + lifecycle dokumen
     uploadHandler.ts  Analisis file upload (progressif, ada batasnya)
@@ -78,7 +79,10 @@ Node — lihat `src/lib/*.test.ts`.
 - **Upload PDF & analisis otomatis** — jumlah halaman, ukuran halaman per halaman, ukuran file.
   Render thumbnail berjalan bertahap dengan progress dan tidak membekukan tab; di atas
   `MAX_THUMBNAIL_PAGES` (400) halaman tetap masuk ke imposition, hanya preview-nya yang jadi
-  placeholder bernomor. Upload dibatasi 150 MB.
+  placeholder bernomor. Upload dibatasi 150 MB. Deteksi file tidak bergantung pada MIME: PDF dari
+  share sheet Android sering datang dengan `file.type` kosong atau `application/octet-stream`, jadi
+  tipe yang tidak informatif jatuh ke ekstensi `.pdf`, sedangkan tipe yang jelas menyebut keluarga
+  lain (gambar/audio/teks) tetap ditolak di depan.
 - **Page Management** — drag & drop reorder, rotate 90°, delete, duplicate, insert blank,
   replace dari nomor halaman lain atau jadi blank. Tombol **Lengkapi N halaman** menambahkan
   halaman kosong di akhir sampai pas dengan ukuran signature — kalau tidak ditekan pun engine
@@ -86,14 +90,25 @@ Node — lihat `src/lib/*.test.ts`.
 - **Layout / Binding** — Booklet, Saddle Stitch, Perfect Binding, Signature Imposition
   (4/8/16/24/32/custom).
 - **Book Size & Paper Size** — A4/A5/A6/B5/Letter + A4/A3/A2/F4/SRA3, semua bisa Custom,
-  plus orientasi (auto/portrait/landscape).
+  plus orientasi (auto/portrait/landscape). **Auto** mencoba kedua orientasi dan memilih yang
+  benar-benar memuat grid terpadat: SRA3 + A5 otomatis jadi 4-up di portrait, bukan 2-up di
+  landscape. Kalau kedua orientasi menghasilkan kepadatan yang sama, pilihan lamalah yang dipakai,
+  jadi proyek yang sudah ada tidak berubah kertasnya.
 - **Bleed, Safe Area, Gutter** dan toggle **Crop Mark / Bleed Area / Safe Area / Fold Mark /
   Center Line / Registration Mark** — keenamnya benar-benar digambar ke PDF, dan preview
   menunjukkan apa yang akan tercetak.
 - **Creep Compensation** — auto (dari ketebalan kertas) atau manual, dihitung **per signature**
   karena tiap signature dilipat sendiri.
 - **Cover Generator** — back | spine | front dalam satu lembar, bleed per sisi, crop mark yang
-  otomatis mengecil kalau bleed nol. Lebar spine bisa diisi manual atau **dihitung otomatis**
+  otomatis mengecil kalau bleed nol. Artwork mengikuti aturan yang sama dengan halaman interior:
+  **lebih besar dari trim = punya bleed sendiri → di-fit ke bleed box** (tidak diperkecil ke trim),
+  sedangkan artwork seukuran trim di-fit ke trim. Bleed hanya di sisi luar cover; tepi yang
+  berbatasan dengan spine adalah lipatan, jadi artwork yang punya bleed di keempat sisi akan
+  kehilangan 3 mm di sisi dalam itu (98 % skala) dan tetap menutup trim + bleed luar tanpa tepi
+  putih. Panel menampilkan catatan kalau artwork tidak membawa bleed, atau kalau file yang diunggah
+  punya lebih dari satu halaman (hanya halaman 1 yang dipakai per slot). File cover **tidak ikut
+  tersimpan otomatis** — hanya pengaturan spine/bleed yang tersimpan, dan UI menyebutkannya.
+  Lebar spine bisa diisi manual atau **dihitung otomatis**
   (`lembar × ketebalan kertas`, dikali 0,9 untuk compress lem perfect binding) dari
   *Print Settings → ketebalan kertas* — tetap estimasi, bukan pengganti kaliper di kertas
   cetak sebenarnya.
@@ -153,7 +168,11 @@ Padding selalu **virtual**: slot tambahan tidak menjadi `PageInfo`, tidak mengge
 dan dirender sebagai halaman kosong.
 
 Perfect binding memakai pola `front = 4i+1 | 4i+2`, `back = 4i+3 | 4i+4` (lembar ditumpuk, bukan
-dilipat). Semua binding memakai target kelipatan 4 halaman per lembar fisik.
+dilipat). Target padding adalah **halaman per lembar fisik**: kelipatan 4 untuk spread 2-up,
+kelipatan **8** untuk lembar 4-up (2×2), karena satu lembar 4-up membawa dua spread. Angka yang
+dipakai UI (tombol *Lengkapi N halaman*, ringkasan padding, estimasi creep) dan yang dipakai engine
+berasal dari satu resolver yang sama — `resolvePrintPlan()` di `src/lib/plan.ts` — jadi tidak
+mungkin lagi berbeda.
 
 Implementasi + penjelasannya ada di `src/lib/imposition.ts`; invariannya ("setiap halaman asli
 muncul tepat satu kali") dikunci oleh test di `src/lib/imposition.test.ts` dan

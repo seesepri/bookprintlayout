@@ -466,22 +466,10 @@ export default function PreviewCanvas() {
                     style={{ width: sheetWpx, height: sheetHpx }}
                   >
                     {geometry && sidePlacements.length > 0 && <>{sidePlacements.map(renderPlacement)}</>}
-                    {state.marks.showFoldMarks && isFolded && geometry && (
+                    {state.marks.showFoldMarks && isFolded && geometry && !geometry.block && (
                       <div
-                        className={
-                          geometry.block
-                            ? "pointer-events-none absolute z-10 border-l border-slate-500"
-                            : "pointer-events-none absolute top-0 z-10 h-full border-l border-dashed border-violet-400"
-                        }
-                        style={{
-                          left: geometry.foldX * scale,
-                          ...(geometry.block
-                            ? {
-                                top: (paper.height - (geometry.block.y + geometry.block.height)) * scale,
-                                height: geometry.block.height * scale,
-                              }
-                            : {}),
-                        }}
+                        className="pointer-events-none absolute top-0 z-10 h-full border-l border-dashed border-violet-400"
+                        style={{ left: geometry.foldX * scale }}
                       />
                     )}
                     {state.marks.showRegistrationMarks && (
@@ -503,18 +491,6 @@ export default function PreviewCanvas() {
                     {state.marks.showCenterLine && (
                       <div className="pointer-events-none absolute left-1/2 top-0 h-full border-l border-dashed border-slate-700" />
                     )}
-                    {state.marks.showCropMarks &&
-                      geometry?.cutLines?.map((y, i) => (
-                        <div
-                          key={`cut-${i}`}
-                          className="pointer-events-none absolute z-10 border-t border-slate-500"
-                          style={{
-                            left: (geometry.block?.x ?? 0) * scale,
-                            width: (geometry.block?.width ?? paper.width) * scale,
-                            top: (paper.height - y) * scale,
-                          }}
-                        />
-                      ))}
                     {state.marks.showCropMarks && geometry && (
                       <>
                         {geometry.cropMarks.map((mark, i) => {

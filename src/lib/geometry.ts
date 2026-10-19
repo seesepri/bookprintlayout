@@ -31,8 +31,6 @@ export interface SheetGeometry {
   front: { left: PagePlacement; right: PagePlacement };
   back: { left: PagePlacement; right: PagePlacement };
   cropMarks: CropMarkGeometry[];
-  /** Internal row boundaries (mm from the bottom) — cut lines on a denser grid. */
-  cutLines?: number[];
   /** Trim block (mm from the bottom-left); only a denser grid has one. */
   block?: RectMM;
   cropGapMm: number;
@@ -295,10 +293,11 @@ function buildGridGeometry(
     { x: originX, y: originY, dx: -1, dy: 1 },
     { x: originX + blockW, y: originY, dx: 1, dy: 1 },
   ];
-  const cutLines: number[] = [];
+  // A denser sheet is indexed by its marks alone: the tick pair on each internal
+  // row boundary is the cut, and the middle of the block is the fold. Drawing a
+  // rule across the artwork only proves the grid to the printer's eye.
   for (let r = 1; r < rows; r++) {
     const y = originY + r * bookSize.height;
-    cutLines.push(y);
     cropMarks.push({ x: originX, y, dx: -1, dy: 0 }, { x: originX + blockW, y, dx: 1, dy: 0 });
   }
 
@@ -309,7 +308,6 @@ function buildGridGeometry(
     frontSlots: front,
     backSlots: back,
     cropMarks,
-    cutLines,
     block: rect(originX, originY, blockW, blockH),
     cropGapMm: CROP_GAP_MM,
     cropLengthMm: CROP_LENGTH_MM,

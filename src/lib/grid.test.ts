@@ -263,7 +263,6 @@ describe("4-up head-to-head: the band turn is a setting, not a given", () => {
     // 24 mirrored to the right column, 1 to the left.
     expect(top[0].trim.x).toBe(162);
     expect(top[1].trim.x).toBe(14);
-    expect(g.cutLines).toEqual([242]);
   });
 
   it("prints the band upright, still in reading order, when asked", () => {
@@ -274,24 +273,25 @@ describe("4-up head-to-head: the band turn is a setting, not a given", () => {
     // Upright means the mirror is gone with the rotation: 24 left, 1 right.
     expect(top[0].trim.x).toBe(14);
     expect(top[1].trim.x).toBe(162);
-    // Same block, same fold, same cut line: only the turn changed.
+    // Same block, same fold, same marks: only the turn changed.
     const h = buildSheetGeometry({ ...base, sheet, grid: QUAD_GRID });
     expect(g.foldX).toBe(h.foldX);
-    expect(g.cutLines).toEqual(h.cutLines);
     expect(g.cropMarks).toEqual(h.cropMarks);
   });
 
-  it("reports the trim block the hairlines span", () => {
+  it("is mark-only: a trim block, six crop marks, nothing drawn across it", () => {
     const g = buildSheetGeometry({ ...base, sheet, grid: QUAD_GRID });
     expect(g.block).toEqual({ x: 14, y: 32, width: 296, height: 420 });
-    expect(g.cutLines).toEqual([242]);
     expect(g.foldX).toBe(162);
+    // Four corners plus one tick per side on the internal row boundary.
+    expect(g.cropMarks).toHaveLength(6);
+    expect(g.cropMarks.filter((m) => m.dy === 0).map((m) => m.y)).toEqual([242, 242]);
   });
 
-  it("leaves the pair spread without cut lines", () => {
+  it("leaves the pair spread without a block", () => {
     const pair = planImposition(8, "booklet", 16, "left", { slotsPerSide: 2 }).sheets[0];
     const g = buildSheetGeometry({ ...base, sheet: pair });
-    expect(g.cutLines).toBeUndefined();
+    expect(g.block).toBeUndefined();
   });
 });
 

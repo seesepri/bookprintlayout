@@ -163,7 +163,9 @@ export default function BookSettingsPanel() {
             <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
               {state.quadHeadToHead
                 ? "Baris atas diputar 180° supaya kedua band bertemu kepala-ke-kepala."
-                : "Kedua baris dicetak tegak. Garis potong horizontal (putus-putus amber) dicetak di batas baris; garis lipat vertikal tetap ungu."}
+                : "Kedua baris dicetak tegak; potong di tick batas baris, lalu putar salah satu bagian."}{" "}
+              4-up dicetak mark saja: tick kiri-kanan di batas baris jadi patokan potong, tanpa garis melintang di atas
+              artwork.
             </p>
           </Field>
         )}

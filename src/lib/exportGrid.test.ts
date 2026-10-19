@@ -97,3 +97,19 @@ describe("export honours the denser grid", () => {
     expect(formXObjectsPerSide(quad).reduce((a, b) => a + b, 0)).toBe(28);
   });
 });
+
+describe("upright top band", () => {
+  it("keeps the same sheets and placements, only the turn changes", async () => {
+    const source = await makeSource(28);
+    const quad = { cols: 2, rows: 2 };
+    const headToHead = await build(source, { grid: quad, marks: ALL_MARKS });
+    const upright = await build(source, { grid: quad, marks: ALL_MARKS, quadHeadToHead: false });
+
+    // Cutting the sheet instead of folding it head-to-head is a presentation
+    // choice, so the physical plan must not move.
+    expect(upright.getPageCount()).toBe(headToHead.getPageCount());
+    expect(formXObjectsPerSide(upright)).toEqual(formXObjectsPerSide(headToHead));
+    expect(upright.getPageCount()).toBe(8);
+  });
+});
+

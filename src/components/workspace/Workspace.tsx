@@ -87,7 +87,7 @@ export default function Workspace() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-screen w-full overflow-hidden bg-slate-50">
       <Sidebar />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">{renderCenter()}</div>

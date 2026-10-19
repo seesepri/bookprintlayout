@@ -1,4 +1,4 @@
-# BookPrint Layout
+# seebook
 
 **Professional Book Imposition & Print Layout Tool** — aplikasi web untuk membantu percetakan,
 desainer, penerbit, dan pengguna umum melakukan layout, imposition, dan persiapan file PDF buku
@@ -63,7 +63,6 @@ src/
     uploadHandler.ts  Analisis file upload (progressif, ada batasnya)
     paperSizes.ts     Preset ukuran kertas/buku, konversi satuan, parse input angka
     previewHelpers.ts Util orientasi kertas & lookup thumbnail
-    theme.ts          Dark mode (class `.dark` yang dipakai index.css)
   state/
     ProjectContext.tsx  Global state (React Context + useReducer + undo)
   types/                Definisi tipe TypeScript

@@ -58,14 +58,12 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+    <div className="min-h-screen bg-white text-slate-900">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Logo BookPrint Layout" className="h-8 w-8 rounded-lg object-cover shadow-sm" />
-            <span className="text-[15px] font-bold tracking-tight">
-              BookPrint <span className="text-indigo-600 dark:text-indigo-400">Layout</span>
-            </span>
+            <img src="/logo.png" alt="Logo seebook" className="h-8 w-8 rounded-lg object-cover shadow-sm" />
+            <span className="text-[15px] font-bold tracking-tight">seebook</span>
           </div>
           <button
             onClick={() => {
@@ -79,16 +77,16 @@ export default function Landing() {
         </div>
       </header>
 
-      <section className="border-b border-slate-200 bg-gradient-to-b from-indigo-50/50 via-white to-white dark:border-slate-800 dark:from-indigo-950/20 dark:via-slate-950 dark:to-slate-950">
+      <section className="border-b border-slate-200 bg-gradient-to-b from-indigo-50/50 via-white to-white">
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 py-16 lg:grid-cols-2 lg:py-24">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-600 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-600">
               <Sparkles className="h-3 w-3" /> 100% di browser
             </span>
             <h1 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl">
-              Imposition buku, <span className="text-indigo-600 dark:text-indigo-400">siap cetak</span>.
+              Imposition buku, <span className="text-indigo-600">siap cetak</span>.
             </h1>
-            <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
+            <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-600">
               Susun PDF jadi lembar cetak — booklet, saddle stitch, perfect binding. File tidak pernah keluar dari
               perangkat Anda.
             </p>
@@ -105,7 +103,7 @@ export default function Landing() {
                   goWorkspace();
                   setView("layout");
                 }}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-400 hover:bg-slate-50"
               >
                 Mulai Layout <ArrowRight className="h-4 w-4" />
               </button>
@@ -113,11 +111,11 @@ export default function Landing() {
           </div>
 
           <div className="relative mx-auto w-full max-w-sm">
-            <div className="absolute -inset-6 rounded-2xl bg-indigo-100/50 blur-2xl dark:bg-indigo-900/20" />
-            <div className="relative rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="absolute -inset-6 rounded-2xl bg-indigo-100/50 blur-2xl" />
+            <div className="relative rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
               <div className="mb-4 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 <span>Lembar 1 / 8</span>
-                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300">
+                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-600">
                   Booklet
                 </span>
               </div>
@@ -125,7 +123,7 @@ export default function Landing() {
                 {["16", "1", "2", "15"].map((n, i) => (
                   <div
                     key={i}
-                    className="flex aspect-[3/4] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-2xl font-black text-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-600"
+                    className="flex aspect-[3/4] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-2xl font-black text-slate-300"
                   >
                     {n}
                   </div>
@@ -140,10 +138,10 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="border-b border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/40">
+      <section className="border-b border-slate-200 bg-slate-50/60">
         <div className="mx-auto max-w-6xl px-6 py-16">
           <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Dari PDF mentah ke lembar cetak</h2>
-          <p className="mt-2 max-w-lg text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-2 max-w-lg text-sm text-slate-500">
             Semua diproses di perangkat Anda — tidak ada file yang diunggah ke server.
           </p>
           <div className="mt-9 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -152,13 +150,13 @@ export default function Landing() {
               return (
                 <article
                   key={f.title}
-                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm"
                 >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
                     <Icon className="h-4 w-4" />
                   </div>
                   <h3 className="text-[13px] font-semibold">{f.title}</h3>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{f.desc}</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{f.desc}</p>
                 </article>
               );
             })}
@@ -167,7 +165,7 @@ export default function Landing() {
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-16">
-        <div className="rounded-xl bg-slate-900 px-6 py-12 text-center dark:bg-slate-900">
+        <div className="rounded-xl bg-slate-900 px-6 py-12 text-center">
           <h2 className="text-2xl font-bold text-white sm:text-3xl">Siap cetak?</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
             Upload PDF, imposition dihitung otomatis.
@@ -181,8 +179,8 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-400 dark:border-slate-800">
-        © {new Date().getFullYear()} BookPrint Layout — prepress &amp; percetakan.
+      <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+        © {new Date().getFullYear()} seebook — prepress &amp; percetakan.
       </footer>
     </div>
   );

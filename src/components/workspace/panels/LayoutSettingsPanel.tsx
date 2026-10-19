@@ -61,7 +61,7 @@ export default function LayoutSettingsPanel() {
     state.binding === "signature" ? computeSignatureRanges(padToMultiple(totalRaw, 4), state.signatureSize) : [];
 
   return (
-    <div className="settings-panel flex h-auto max-h-[46vh] w-full shrink-0 flex-col overflow-y-auto border-t border-slate-200 bg-white md:h-full md:max-h-none md:w-[320px] md:border-l md:border-t-0 lg:w-[340px] dark:border-slate-800 dark:bg-slate-900">
+    <div className="settings-panel flex h-auto max-h-[46vh] w-full shrink-0 flex-col overflow-y-auto border-t border-slate-200 bg-white md:h-full md:max-h-none md:w-[320px] md:border-l md:border-t-0 lg:w-[340px]">
       <PanelSection title="Jenis Binding">
         <div className="space-y-2">
           {BINDINGS.map((b) => (
@@ -70,12 +70,12 @@ export default function LayoutSettingsPanel() {
               onClick={() => dispatch({ type: "SET_BINDING", binding: b.key })}
               className={`w-full rounded-lg border px-3.5 py-2.5 text-left transition ${
                 state.binding === b.key
-                  ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500/20 dark:bg-indigo-950/40"
-                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60"
+                  ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500/20"
+                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
               }`}
             >
-              <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">{b.label}</div>
-              <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{b.desc}</div>
+              <div className="text-[13px] font-semibold text-slate-800">{b.label}</div>
+              <div className="mt-0.5 text-[11px] text-slate-500">{b.desc}</div>
             </button>
           ))}
         </div>
@@ -91,7 +91,7 @@ export default function LayoutSettingsPanel() {
                 className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${
                   state.signatureSize === n
                     ? "border-indigo-500 bg-indigo-600 text-white"
-                    : "border-slate-200 text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:text-slate-300"
+                    : "border-slate-200 text-slate-600 hover:border-slate-300"
                 }`}
               >
                 {n}
@@ -108,14 +108,14 @@ export default function LayoutSettingsPanel() {
       )}
 
       <PanelSection title="Ringkasan">
-        <dl className="space-y-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+        <dl className="space-y-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
           <Row label="Halaman" value={String(totalRaw)} />
           <Row label="Per Lembar" value={`${neededMultiple} (${layout.grid.cols}×${layout.grid.rows})`} />
           <Row label="Halaman Kosong" value={String(blanks)} />
           <Row label="Setelah Padding" value={String(padded)} />
         </dl>
         {blanks > 0 && (
-          <div className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+          <div className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-600">
             <span>
               Ditambah {blanks} halaman kosong agar pas kelipatan {neededMultiple}
               {signatureNote}.
@@ -132,9 +132,9 @@ export default function LayoutSettingsPanel() {
             {signatureRanges.map((sig) => (
               <div
                 key={sig.index}
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] dark:border-slate-700"
+                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-1.5 text-[11px]"
               >
-                <span className="font-semibold text-slate-600 dark:text-slate-300">Signature {sig.index}</span>
+                <span className="font-semibold text-slate-600">Signature {sig.index}</span>
                 <span className="text-slate-400">
                   Hal. {sig.startPage}–{sig.endPage}
                 </span>
@@ -161,8 +161,8 @@ export default function LayoutSettingsPanel() {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
-      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
-      <dd className="font-semibold text-slate-800 dark:text-slate-100">{value}</dd>
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="font-semibold text-slate-800">{value}</dd>
     </div>
   );
 }

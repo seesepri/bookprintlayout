@@ -54,6 +54,15 @@ describe("Sidebar", () => {
     expect(screen.getByTitle("Ekspor")).toBeDefined();
   });
 
+  it("leaves exactly one toggle once open, with the logo as plain branding", () => {
+    renderWithProject(<Sidebar />);
+    expect(screen.getAllByRole("button", { name: /sidebar/i })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Buka sidebar" }));
+    expect(screen.getAllByRole("button", { name: /sidebar/i })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Tutup sidebar" })).toBeDefined();
+    expect(screen.getByRole("img", { name: "seebook" })).toBeDefined();
+  });
+
   it("only offers to start over while there is work to lose", () => {
     renderWithProject(<Sidebar />, projectState({ pages: [] }));
     expand();

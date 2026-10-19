@@ -1,3 +1,4 @@
+import { execSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import tailwindcss from "@tailwindcss/vite";
@@ -8,9 +9,27 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Stamp every build with the commit it came from. "Which build am I looking at"
+ * was impossible to answer from a screenshot, and the answer decides whether a
+ * bug is still open or has simply not been deployed yet.
+ */
+const BUILD_ID = (() => {
+  const fromCi = process.env.GITHUB_SHA?.trim();
+  if (fromCi) return fromCi.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "dev";
+  }
+})();
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   build: {
     // Vite 8 bundles with rolldown/oxc, and its default target
     // "baseline-widely-available" is a *moving* floor: which browsers that label

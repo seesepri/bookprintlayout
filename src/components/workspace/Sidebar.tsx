@@ -92,6 +92,12 @@ export default function Sidebar() {
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           <span className="hidden md:inline">{theme === "dark" ? "Mode Terang" : "Mode Gelap"}</span>
         </button>
+        <div
+          className="mt-2 hidden px-3 font-mono text-[10px] text-slate-400 md:block dark:text-slate-500"
+          title="Commit yang membangun bundle ini"
+        >
+          build {__BUILD_ID__}
+        </div>
         {hasWork && (
           <button
             onClick={startNewProject}

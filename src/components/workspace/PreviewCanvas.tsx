@@ -242,7 +242,7 @@ export default function PreviewCanvas() {
         style={{ left: x, top: y, width, height }}
       >
         <div
-          className="absolute border border-slate-300 bg-white dark:border-slate-700"
+          className="absolute border border-slate-300 bg-white"
           style={{ left: trimLeft, top: trimTop, width: snap(placement.trim.width * scale), height: snap(placement.trim.height * scale) }}
         >
           {artworkUrl ? (
@@ -264,7 +264,7 @@ export default function PreviewCanvas() {
               />
             </div>
           ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-slate-50 text-slate-300 dark:bg-slate-800">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-slate-50 text-slate-300">
               <span className="text-3xl font-black">{placement.pageNumber ?? "—"}</span>
               <span className="text-[10px] font-medium uppercase tracking-wider">{placement.pageNumber ? "Halaman" : "Kosong"}</span>
             </div>
@@ -294,10 +294,10 @@ export default function PreviewCanvas() {
   };
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-slate-100 dark:bg-slate-950">
+    <div className="flex min-w-0 flex-1 flex-col bg-slate-100">
       {/* Toolbar */}
-      <div className="preview-toolbar flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-white px-2.5 py-2 sm:px-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
+      <div className="preview-toolbar flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-white px-2.5 py-2 sm:px-4">
+        <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
           {(
             [
               { key: "spread", icon: BookOpenText, label: "Spread" },
@@ -311,7 +311,7 @@ export default function PreviewCanvas() {
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition",
                 state.viewMode === m.key
                   ? "bg-indigo-600 text-white"
-                  : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  : "text-slate-500 hover:bg-slate-100"
               )}
             >
               <m.icon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">{m.label}</span>
@@ -320,26 +320,26 @@ export default function PreviewCanvas() {
         </div>
 
         {state.viewMode !== "grid" && (
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 px-1 py-0.5 dark:border-slate-700">
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 px-1 py-0.5">
             <button
               disabled={sheetIndex === 0}
               onClick={() => setSheetIndex((i) => Math.max(0, i - 1))}
-              className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30 dark:hover:bg-slate-800"
+              className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="min-w-[72px] sm:min-w-[92px] text-center text-xs font-medium text-slate-600 dark:text-slate-300">
+            <span className="min-w-[72px] sm:min-w-[92px] text-center text-xs font-medium text-slate-600">
               Sheet {plan.sheets.length ? sheetIndex + 1 : 0} / {plan.sheets.length}
             </span>
             <button
               disabled={sheetIndex >= plan.sheets.length - 1}
               onClick={() => setSheetIndex((i) => Math.min(plan.sheets.length - 1, i + 1))}
-              className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30 dark:hover:bg-slate-800"
+              className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
             {isFolded && (
-              <div className="ml-1 flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="ml-1 flex overflow-hidden rounded-lg border border-slate-200">
                 <button
                   onClick={() => setSide("front")}
                   className={cn(
@@ -366,28 +366,28 @@ export default function PreviewCanvas() {
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={() => dispatch({ type: "SET_ZOOM", zoom: Math.max(0.2, Number((state.zoom - 0.15).toFixed(2))) })}
-            className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100"
           >
             <ZoomOut className="h-4 w-4" />
           </button>
-          <span className="w-12 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">
+          <span className="w-12 text-center text-xs font-semibold text-slate-600">
             {Math.round(state.zoom * 100)}%
           </span>
           <button
             onClick={() => dispatch({ type: "SET_ZOOM", zoom: Math.min(4, Number((state.zoom + 0.15).toFixed(2))) })}
-            className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100"
           >
             <ZoomIn className="h-4 w-4" />
           </button>
           <button
             onClick={fitToScreen}
-            className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100"
           >
             <Maximize2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Pas</span>
           </button>
           <button
             onClick={toggleFullscreen}
-            className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100"
           >
             <Expand className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Layar penuh</span>
           </button>
@@ -395,7 +395,7 @@ export default function PreviewCanvas() {
       </div>
 
       {/* Canvas */}
-      <div ref={containerRef} className="relative flex-1 overflow-hidden bg-slate-100 dark:bg-slate-950">
+      <div ref={containerRef} className="relative flex-1 overflow-hidden bg-slate-100">
         {!state.pages.length ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-slate-400">
             <BookOpenText className="h-10 w-10" />
@@ -411,11 +411,11 @@ export default function PreviewCanvas() {
                     setSheetIndex(idx);
                     dispatch({ type: "SET_VIEW_MODE", mode: "spread" });
                   }}
-                  className="group rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+                  className="group rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md"
                 >
                   <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-slate-400">
                     <span>Lembar {idx + 1}</span>
-                    <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-600 group-hover:bg-indigo-100 dark:bg-indigo-900/40">
+                    <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-600 group-hover:bg-indigo-100">
                       Sig {s.signature}
                     </span>
                   </div>
@@ -423,7 +423,7 @@ export default function PreviewCanvas() {
                     {[s.front.left, s.front.right].map((n, i) => (
                       <div
                         key={i}
-                        className="flex aspect-[3/4] flex-1 items-center justify-center overflow-hidden rounded border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
+                        className="flex aspect-[3/4] flex-1 items-center justify-center overflow-hidden rounded border border-slate-200 bg-slate-50"
                       >
                         {getPageThumb(state.pages, n)?.thumbnail ? (
                           <img src={getPageThumb(state.pages, n)!.thumbnail} alt={`Halaman ${n}`} className="h-full w-full object-contain" />
@@ -443,7 +443,7 @@ export default function PreviewCanvas() {
         ) : (
           <div className="flex h-full">
             <div className="flex w-5 shrink-0 flex-col">
-              <div className="h-5 shrink-0 border-b border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" />
+              <div className="h-5 shrink-0 border-b border-r border-slate-200 bg-white" />
               <div className="flex-1 overflow-hidden">
                 <div style={{ transform: `translateY(${pan.y}px)` }}>
                   <Ruler lengthMm={paper.height} scale={scale} orientation="vertical" />
@@ -474,7 +474,7 @@ export default function PreviewCanvas() {
                   style={{ transform: `translate(-50%,-50%) translate(${pan.x}px, ${pan.y}px)` }}
                 >
                   <div
-                    className="relative bg-white shadow-2xl ring-1 ring-slate-300 dark:ring-slate-700"
+                    className="relative bg-white shadow-2xl ring-1 ring-slate-300"
                     style={{ width: sheetWpx, height: sheetHpx }}
                   >
                     {geometry && sidePlacements.length > 0 && <>{sidePlacements.map(renderPlacement)}</>}
@@ -527,7 +527,7 @@ export default function PreviewCanvas() {
                     )}
                   </div>
                 </div>
-                <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-medium text-slate-500 shadow dark:bg-slate-900/90">
+                <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-medium text-slate-500 shadow">
                   <Move className="h-3 w-3" /> Geser untuk memindahkan
                 </div>
               </div>

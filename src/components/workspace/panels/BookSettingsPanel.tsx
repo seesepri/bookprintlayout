@@ -61,7 +61,7 @@ export default function BookSettingsPanel() {
   });
 
   return (
-    <div className="settings-panel flex h-auto max-h-[46vh] w-full shrink-0 flex-col overflow-y-auto border-t border-slate-200 bg-white md:h-full md:max-h-none md:w-[320px] md:border-l md:border-t-0 lg:w-[340px] dark:border-slate-800 dark:bg-slate-900">
+    <div className="settings-panel flex h-auto max-h-[46vh] w-full shrink-0 flex-col overflow-y-auto border-t border-slate-200 bg-white md:h-full md:max-h-none md:w-[320px] md:border-l md:border-t-0 lg:w-[340px]">
       <PanelSection title="Ukuran Buku">
         <Select
           value={state.bookSizePreset}
@@ -89,7 +89,7 @@ export default function BookSettingsPanel() {
             />
           </div>
         ) : (
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
             {activeBookSize.width} × {activeBookSize.height} mm
           </div>
         )}
@@ -122,7 +122,7 @@ export default function BookSettingsPanel() {
             />
           </div>
         ) : (
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
             {activePaperSize.width} × {activePaperSize.height} mm
           </div>
         )}
@@ -149,7 +149,7 @@ export default function BookSettingsPanel() {
             </option>
           </Select>
           {nestedSignature ? (
-            <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+            <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-relaxed text-amber-600">
               <span>Signature selalu spread 2 per sisi.</span>
               <InfoTip
                 label="signature 2 per sisi"
@@ -157,7 +157,7 @@ export default function BookSettingsPanel() {
               />
             </p>
           ) : (
-            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
               {folded
                 ? layout.slotsPerSide > 2
                   ? `${layout.slotsPerSide * 2} halaman/lembar · lipat sekali di tengah`
@@ -166,7 +166,7 @@ export default function BookSettingsPanel() {
               {folded && layout.slotsPerSide === 2 && (
                 <>
                   {" · "}
-                  <span className="text-slate-500 dark:text-slate-400">4 per sisi butuh kertas lebih besar</span>
+                  <span className="text-slate-500">4 per sisi butuh kertas lebih besar</span>
                 </>
               )}
             </p>
@@ -208,7 +208,7 @@ export default function BookSettingsPanel() {
       </PanelSection>
 
       <PanelSection title="Perkiraan Lembar">
-        <div className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
+        <div className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-800">
           <p className="flex items-center gap-1 font-semibold">
             {sheetCount} lembar
             <InfoTip
@@ -216,13 +216,13 @@ export default function BookSettingsPanel() {
               text={`Setiap lembar ${paper.width}×${paper.height} mm memuat ${layout.slotsPerSide} halaman (${layout.grid.cols}×${layout.grid.rows}) per sisi — ${layout.slotsPerSide * 2} halaman per lembar — untuk ${state.pages.length} halaman.`}
             />
           </p>
-          <p className="mt-1 text-indigo-600 dark:text-indigo-300">
+          <p className="mt-1 text-indigo-600">
             {layout.grid.cols}×{layout.grid.rows} · {layout.slotsPerSide * 2} halaman/lembar
           </p>
         </div>
 
         {layout.reason === "pair-fits-only" && (
-          <p className="flex items-start gap-1 text-[11px] leading-relaxed text-indigo-500 dark:text-indigo-400">
+          <p className="flex items-start gap-1 text-[11px] leading-relaxed text-indigo-500">
             <span>
               4 per sisi butuh kertas {quadNeed.width.toFixed(1)}×{quadNeed.height.toFixed(1)} mm.
             </span>
@@ -233,7 +233,7 @@ export default function BookSettingsPanel() {
           </p>
         )}
         {layout.marksClipped && (
-          <p className="flex items-start gap-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+          <p className="flex items-start gap-1 text-[11px] leading-relaxed text-amber-600">
             <span>Crop mark tidak kebagian ruang, jadi dilewati.</span>
             <InfoTip
               label="crop mark terpotong"

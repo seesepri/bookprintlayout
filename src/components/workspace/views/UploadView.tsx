@@ -34,7 +34,7 @@ export default function UploadView() {
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex items-center gap-1.5">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Upload</h2>
+        <h2 className="text-lg font-bold text-slate-900">Upload</h2>
         <InfoTip
           label="upload"
           text="PDF diproses sepenuhnya di perangkat Anda — tidak ada file yang dikirim ke server. Batas 150 MB; di atas 400 halaman, thumbnail halaman sisanya dibuat sebagai placeholder bernomor."
@@ -55,15 +55,15 @@ export default function UploadView() {
         onClick={() => inputRef.current?.click()}
         className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-14 text-center transition ${
           dragOver
-            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
-            : "border-slate-300 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-slate-700 dark:bg-slate-800/40 dark:hover:border-indigo-700"
+            ? "border-indigo-500 bg-indigo-50"
+            : "border-slate-300 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50/40"
         }`}
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
           <UploadCloud className="h-6 w-6" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Drop PDF di sini</p>
+          <p className="text-sm font-semibold text-slate-700">Drop PDF di sini</p>
           <p className="mt-0.5 text-xs text-slate-400">atau klik untuk memilih file · maks. 150 MB</p>
         </div>
         <input
@@ -76,13 +76,13 @@ export default function UploadView() {
       </div>
 
       {state.meta.status === "ready" && (
-        <div className="mt-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-          <FileText className="h-7 w-7 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div className="mt-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <FileText className="h-7 w-7 shrink-0 text-emerald-600" />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 truncate text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+            <div className="flex items-center gap-1.5 truncate text-sm font-semibold text-emerald-800">
               <CheckCircle2 className="h-4 w-4 shrink-0" /> {state.meta.fileName}
             </div>
-            <div className="mt-0.5 text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
+            <div className="mt-0.5 text-[11px] text-emerald-700/80">
               {state.pages.length} halaman · {bytesToSize(state.meta.fileSizeBytes)} ·{" "}
               {(state.meta.pageSizePt.width * 0.3528).toFixed(0)}×{(state.meta.pageSizePt.height * 0.3528).toFixed(0)} mm
             </div>

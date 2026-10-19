@@ -37,14 +37,14 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 dark:bg-slate-950">
-        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">Terjadi kesalahan</h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 className="text-lg font-bold text-slate-900">Terjadi kesalahan</h1>
+          <p className="mt-2 text-sm text-slate-500">
             Aplikasi berhenti menangani tampilan ini. Layout Anda tersimpan otomatis di browser,
             jadi memuat ulang biasanya cukup.
           </p>
-          <pre className="mt-3 max-h-32 overflow-auto rounded-lg bg-slate-100 p-3 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <pre className="mt-3 max-h-32 overflow-auto rounded-lg bg-slate-100 p-3 text-[11px] text-slate-600">
             {this.state.error.message}
           </pre>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -56,7 +56,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             </button>
             <button
               onClick={() => void this.resetAndReload()}
-              className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/60 dark:hover:bg-red-950/30"
+              className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
             >
               Mulai ulang &amp; hapus proyek tersimpan
             </button>

@@ -47,7 +47,7 @@ export default function PrintSettingsPanel() {
   const estimatedCreep = computeCreepShiftMm(1, deepestSignature, state.creep.paperThicknessMm, state.creep.mode, state.creep.manualAmountMm);
 
   return (
-    <div className="settings-panel flex h-auto max-h-[46vh] w-full shrink-0 flex-col overflow-y-auto border-t border-slate-200 bg-white md:h-full md:max-h-none md:w-[320px] md:border-l md:border-t-0 lg:w-[340px] dark:border-slate-800 dark:bg-slate-900">
+    <div className="settings-panel flex h-auto max-h-[46vh] w-full shrink-0 flex-col overflow-y-auto border-t border-slate-200 bg-white md:h-full md:max-h-none md:w-[320px] md:border-l md:border-t-0 lg:w-[340px]">
       <PanelSection title="Arah Binding">
         <Select
           value={state.bindingDirection}
@@ -80,7 +80,7 @@ export default function PrintSettingsPanel() {
               onChange={(e) => dispatch({ type: "SET_BLEED", value: readNumberInput(e.target.value, { fallback: state.bleedMm, min: 0, max: 10 }) })}
               className="w-full accent-indigo-600"
             />
-            <span className="w-12 shrink-0 text-right text-xs font-semibold text-slate-600 tabular-nums dark:text-slate-300">
+            <span className="w-12 shrink-0 text-right text-xs font-semibold text-slate-600 tabular-nums">
               {state.bleedMm} mm
             </span>
           </div>
@@ -106,7 +106,7 @@ export default function PrintSettingsPanel() {
               onChange={(e) => dispatch({ type: "SET_SAFE_AREA", value: readNumberInput(e.target.value, { fallback: state.safeAreaMm, min: 0, max: 20 }) })}
               className="w-full accent-indigo-600"
             />
-            <span className="w-12 shrink-0 text-right text-xs font-semibold text-slate-600 tabular-nums dark:text-slate-300">
+            <span className="w-12 shrink-0 text-right text-xs font-semibold text-slate-600 tabular-nums">
               {state.safeAreaMm} mm
             </span>
           </div>
@@ -132,7 +132,7 @@ export default function PrintSettingsPanel() {
               onChange={(e) => dispatch({ type: "SET_GUTTER", value: readNumberInput(e.target.value, { fallback: state.gutterMm, min: 0, max: 50 }) })}
               className="w-full accent-indigo-600"
             />
-            <span className="w-12 shrink-0 text-right text-xs font-semibold text-slate-600 tabular-nums dark:text-slate-300">
+            <span className="w-12 shrink-0 text-right text-xs font-semibold text-slate-600 tabular-nums">
               {state.gutterMm} mm
             </span>
           </div>
@@ -176,7 +176,7 @@ export default function PrintSettingsPanel() {
             onCommit={(manualAmountMm) => dispatch({ type: "SET_CREEP", creep: { manualAmountMm } })}
           />
         )}
-        <div className="flex items-center justify-between rounded-lg bg-violet-50 px-3 py-2 text-[11px] text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+        <div className="flex items-center justify-between rounded-lg bg-violet-50 px-3 py-2 text-[11px] text-violet-700">
           <span className="flex items-center gap-1">
             Geser maks. <b className="tabular-nums">{estimatedCreep.toFixed(2)} mm</b>
             <InfoTip
@@ -184,7 +184,7 @@ export default function PrintSettingsPanel() {
               text={`Dihitung per signature: ${deepestSignature} lembar bertumpuk, sheet terluar bergeser paling jauh. Creep menggeser tiap halaman keluar sedikit supaya setelah dilipat tidak terpotong.`}
             />
           </span>
-          <span className="text-violet-500 dark:text-violet-400">{deepestSignature} lembar</span>
+          <span className="text-violet-500">{deepestSignature} lembar</span>
         </div>
       </PanelSection>
     </div>

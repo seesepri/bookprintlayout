@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* One theme only. Pinned so a dark-preferring OS cannot repaint form controls
+   and scrollbars that the rest of the UI no longer styles. */
+:root {
+  color-scheme: light;
+}
+
 
 html, body, #root {
   height: 100%;

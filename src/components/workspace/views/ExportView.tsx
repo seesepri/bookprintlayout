@@ -113,13 +113,13 @@ export default function ExportView() {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-      <h2 className="text-lg font-bold text-slate-900 dark:text-white">Ekspor</h2>
-      <p className="mb-6 text-[13px] text-slate-500 dark:text-slate-400">PDF final siap kirim ke mesin cetak.</p>
+      <h2 className="text-lg font-bold text-slate-900">Ekspor</h2>
+      <p className="mb-6 text-[13px] text-slate-500">PDF final siap kirim ke mesin cetak.</p>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
-          <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">Format</h3>
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
+            <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Format</h3>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {FORMATS.map((f) => (
                 <button
@@ -127,21 +127,21 @@ export default function ExportView() {
                   onClick={() => dispatch({ type: "SET_EXPORT", settings: { format: f.key } })}
                   className={`rounded-lg border px-3.5 py-2.5 text-left transition ${
                     state.exportSettings.format === f.key
-                      ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40"
-                      : "border-slate-200 hover:border-slate-300 dark:border-slate-700"
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-slate-200 hover:border-slate-300"
                   }`}
                 >
-                  <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">{f.label}</div>
-                  <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{f.desc}</div>
+                  <div className="text-[13px] font-semibold text-slate-800">{f.label}</div>
+                  <div className="mt-0.5 text-[11px] text-slate-500">{f.desc}</div>
                 </button>
               ))}
             </div>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">Per Signature</h3>
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
+            <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Per Signature</h3>
             {plan.signatures.length > 1 ? (
-              <label className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <label className="flex items-start gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"
                   checked={zipPerSignature}
@@ -159,13 +159,13 @@ export default function ExportView() {
                 </span>
               </label>
             ) : (
-              <p className="text-[13px] text-slate-500 dark:text-slate-400">
+              <p className="text-[13px] text-slate-500">
                 Satu signature — tidak ada yang bisa dipisah.
               </p>
             )}
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="grid grid-cols-2 gap-2.5">
               {(
                 [
@@ -175,7 +175,7 @@ export default function ExportView() {
                   ["compress", "Kompres PDF"],
                 ] as [BooleanExportKey, string][]
               ).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 text-[13px] text-slate-600 dark:text-slate-300">
+                <label key={key} className="flex items-center gap-2 text-[13px] text-slate-600">
                   <input
                     type="checkbox"
                     checked={state.exportSettings[key]}
@@ -188,7 +188,7 @@ export default function ExportView() {
             </div>
           </section>
 
-          <section className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+          <section className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-[11px] leading-relaxed text-amber-800">
             <Printer className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="flex items-center gap-1.5">
               <span>
@@ -211,8 +211,8 @@ export default function ExportView() {
           </button>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">Ringkasan</h3>
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Ringkasan</h3>
           <dl className="space-y-2 text-[13px]">
             <RowInfo k="Halaman" v={String(state.pages.length)} />
             <RowInfo k="Lembar" v={String(plan.sheets.length)} />
@@ -223,7 +223,7 @@ export default function ExportView() {
             <RowInfo k="Marks" v={Object.entries(resolved.marks).filter(([, on]) => on).map(([k]) => k.replace("show", "")).join(", ") || "—"} />
           </dl>
 
-          <div className={`mt-4 rounded-lg border p-3 text-[11px] leading-relaxed ${validation.valid ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300" : "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"}`}>
+          <div className={`mt-4 rounded-lg border p-3 text-[11px] leading-relaxed ${validation.valid ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
             <div className="text-xs font-semibold">{validation.valid ? "Layout valid" : "Ekspor diblokir"}</div>
             <div className="mt-1 tabular-nums">
               Butuh {validation.requiredSheet.width.toFixed(1)} × {validation.requiredSheet.height.toFixed(1)} mm
@@ -234,7 +234,7 @@ export default function ExportView() {
 
           {previewUrl && state.generatedPdf ? (
             <div className="mt-4">
-              <iframe src={previewUrl} className="h-64 w-full rounded-lg border border-slate-200 dark:border-slate-700" />
+              <iframe src={previewUrl} className="h-64 w-full rounded-lg border border-slate-200" />
               <button
                 onClick={download}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
@@ -243,7 +243,7 @@ export default function ExportView() {
               </button>
             </div>
           ) : (
-            <div className="mt-4 flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 text-center text-[11px] text-slate-400 dark:border-slate-700">
+            <div className="mt-4 flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 text-center text-[11px] text-slate-400">
               Pratinjau muncul setelah Buat PDF
             </div>
           )}
@@ -255,9 +255,9 @@ export default function ExportView() {
 
 function RowInfo({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1.5 dark:border-slate-800">
+    <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-1.5">
       <dt className="shrink-0 text-slate-400">{k}</dt>
-      <dd className="truncate text-right font-semibold text-slate-700 dark:text-slate-200">{v}</dd>
+      <dd className="truncate text-right font-semibold text-slate-700">{v}</dd>
     </div>
   );
 }

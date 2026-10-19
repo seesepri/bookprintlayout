@@ -34,11 +34,11 @@ function Ruler({ lengthMm, scale, orientation }: RulerProps) {
         horizontal ? (
           <div
             key={mm}
-            className="absolute top-0 border-l border-slate-400/70 dark:border-slate-600"
+            className="absolute top-0 border-l border-slate-400/70"
             style={{ left: pos, height }}
           >
             {labelled && (
-              <span className="absolute left-1 top-0.5 text-[9px] tabular-nums text-slate-500 dark:text-slate-400">
+              <span className="absolute left-1 top-0.5 text-[9px] tabular-nums text-slate-500">
                 {mm}
               </span>
             )}
@@ -46,12 +46,12 @@ function Ruler({ lengthMm, scale, orientation }: RulerProps) {
         ) : (
           <div
             key={mm}
-            className="absolute left-0 border-t border-slate-400/70 dark:border-slate-600"
+            className="absolute left-0 border-t border-slate-400/70"
             style={{ top: pos, width: height }}
           >
             {labelled && (
               <span
-                className="absolute left-2.5 top-[-5px] text-[9px] tabular-nums text-slate-500 dark:text-slate-400"
+                className="absolute left-2.5 top-[-5px] text-[9px] tabular-nums text-slate-500"
                 style={{ writingMode: "vertical-rl" }}
               >
                 {mm}
@@ -68,8 +68,8 @@ function Ruler({ lengthMm, scale, orientation }: RulerProps) {
     <div
       className={
         horizontal
-          ? "relative h-5 shrink-0 overflow-hidden border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
-          : "relative w-5 shrink-0 overflow-hidden border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+          ? "relative h-5 shrink-0 overflow-hidden border-b border-slate-200 bg-white"
+          : "relative w-5 shrink-0 overflow-hidden border-r border-slate-200 bg-white"
       }
       style={horizontal ? { width: totalMm * scale } : { height: totalMm * scale }}
     >

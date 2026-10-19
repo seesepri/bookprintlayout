@@ -14,9 +14,8 @@ import { useProject } from "../../state/ProjectContext";
 import { planImposition } from "../../lib/imposition";
 import { buildSheetGeometry, PagePlacement } from "../../lib/geometry";
 import {
-  orientedPaperSize,
   getPageThumb,
-  resolveSheetLayout,
+  resolveSheet,
   hiResWidthFor,
   shouldRenderHiRes,
   thumbnailFormatFor,
@@ -35,17 +34,14 @@ export default function PreviewCanvas() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragging = useRef<{ x: number; y: number } | null>(null);
 
-  const paper = useMemo(
-    () => orientedPaperSize(activePaperSize, state.orientation, activeBookSize),
-    [activePaperSize, state.orientation, activeBookSize]
-  );
-
   // The same resolver the exporter runs, so the sheet on screen is the sheet on
-  // paper — including when a 2x2 grid starts paying for itself.
-  const layout = useMemo(
+  // paper — orientation and grid together, which is the only way `auto` can show
+  // the 4-up sheet that the other orientation would have hidden.
+  const { paper, layout } = useMemo(
     () =>
-      resolveSheetLayout({
-        paper,
+      resolveSheet({
+        paper: activePaperSize,
+        orientation: state.orientation,
         bookSize: activeBookSize,
         binding: state.binding,
         setting: state.pagesPerSide,
@@ -53,7 +49,16 @@ export default function PreviewCanvas() {
         gutterMm: state.gutterMm,
         showCropMarks: state.marks.showCropMarks,
       }),
-    [paper, activeBookSize, state.binding, state.pagesPerSide, state.bleedMm, state.gutterMm, state.marks.showCropMarks]
+    [
+      activePaperSize,
+      state.orientation,
+      activeBookSize,
+      state.binding,
+      state.pagesPerSide,
+      state.bleedMm,
+      state.gutterMm,
+      state.marks.showCropMarks,
+    ]
   );
 
   const plan = useMemo(

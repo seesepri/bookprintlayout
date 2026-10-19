@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   RotateCw,
   Trash2,
@@ -10,7 +10,7 @@ import {
 import { useProject } from "../../../state/ProjectContext";
 import type { PageInfo, SizeMM } from "../../../types";
 import { mmToPt } from "../../../lib/paperSizes";
-import { planImposition } from "../../../lib/imposition";
+import { resolvePrintPlan } from "../../../lib/plan";
 import toast from "react-hot-toast";
 
 let blankCounter = 0;
@@ -30,7 +30,7 @@ function makeBlankPage(bookSize: SizeMM): PageInfo {
 }
 
 export default function PagesView() {
-  const { state, dispatch, activeBookSize } = useProject();
+  const { state, dispatch, activeBookSize, activePaperSize } = useProject();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<number | null>(null);
   const [replaceValue, setReplaceValue] = useState("");
@@ -78,11 +78,42 @@ export default function PagesView() {
    * multiple of the signature size still prints. Materialising those blanks is
    * for the cases where the *file* must be complete: a printer who counts
    * pages, or a workflow that re-imposes from this PDF.
+   *
+   * The count has to come from the same plan the exporter builds: a 4-up sheet
+   * carries eight pages, so "pad to a multiple of 4" left a 10-page book three
+   * pages short of complete while reporting success.
    */
-  const paddingCount = () => {
-    const plan = planImposition(state.pages.length, state.binding, state.signatureSize, state.bindingDirection);
-    return Math.max(0, plan.paddedTotal - state.pages.length);
-  };
+  const blanksNeeded = useMemo(
+    () =>
+      resolvePrintPlan({
+        pageCount: state.pages.length,
+        paperSize: activePaperSize,
+        bookSize: activeBookSize,
+        orientation: state.orientation,
+        binding: state.binding,
+        bindingDirection: state.bindingDirection,
+        signatureSize: state.signatureSize,
+        pagesPerSide: state.pagesPerSide,
+        bleedMm: state.bleedMm,
+        gutterMm: state.gutterMm,
+        showCropMarks: state.marks.showCropMarks,
+      }).blanks,
+    [
+      state.pages.length,
+      activePaperSize,
+      activeBookSize,
+      state.orientation,
+      state.binding,
+      state.bindingDirection,
+      state.signatureSize,
+      state.pagesPerSide,
+      state.bleedMm,
+      state.gutterMm,
+      state.marks.showCropMarks,
+    ]
+  );
+
+  const paddingCount = () => blanksNeeded;
 
   const padToSignature = () => {
     const count = paddingCount();

@@ -1,12 +1,45 @@
+import { useMemo } from "react";
 import { useProject } from "../../../state/ProjectContext";
 import { PanelSection, Field, NumberField, Checkbox, Select } from "./PanelShell";
-import { computeCreepShiftMm, planImposition } from "../../../lib/imposition";
+import { computeCreepShiftMm } from "../../../lib/imposition";
+import { resolvePrintPlan } from "../../../lib/plan";
 import { readNumberInput } from "../../../lib/paperSizes";
 
 export default function PrintSettingsPanel() {
-  const { state, dispatch } = useProject();
+  const { state, dispatch, activeBookSize, activePaperSize } = useProject();
 
-  const plan = planImposition(state.pages.length, state.binding, state.signatureSize, state.bindingDirection);
+  // Same plan the exporter builds. Calling `planImposition` without the
+  // pages-per-side setting counted a 4-up sheet as two, which inflated both the
+  // signature depth and the creep estimate shown here.
+  const plan = useMemo(
+    () =>
+      resolvePrintPlan({
+        pageCount: state.pages.length,
+        paperSize: activePaperSize,
+        bookSize: activeBookSize,
+        orientation: state.orientation,
+        binding: state.binding,
+        bindingDirection: state.bindingDirection,
+        signatureSize: state.signatureSize,
+        pagesPerSide: state.pagesPerSide,
+        bleedMm: state.bleedMm,
+        gutterMm: state.gutterMm,
+        showCropMarks: state.marks.showCropMarks,
+      }),
+    [
+      state.pages.length,
+      activePaperSize,
+      activeBookSize,
+      state.orientation,
+      state.binding,
+      state.bindingDirection,
+      state.signatureSize,
+      state.pagesPerSide,
+      state.bleedMm,
+      state.gutterMm,
+      state.marks.showCropMarks,
+    ]
+  ).plan;
   // Creep is scoped to a single signature: the outermost sheet of the deepest
   // signature is the worst case, not the outermost sheet of the whole run.
   const deepestSignature = Math.max(1, ...Object.values(plan.signatureSheetCounts));

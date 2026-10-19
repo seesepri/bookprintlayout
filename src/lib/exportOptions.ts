@@ -1,6 +1,6 @@
 import { ImpositionValidation, validateImposition } from "./geometry";
 import { ImpositionPlan, planImposition } from "./imposition";
-import { orientedPaperSize, resolveSheetLayout } from "./previewHelpers";
+import { resolveSheet } from "./previewHelpers";
 import type { GridReason, GridSpec } from "./nup";
 import { MarksSettings, SizeMM } from "../types";
 import type { ProjectState } from "../state/ProjectContext";
@@ -37,7 +37,19 @@ export function resolveExportOptions(
   bookSize: SizeMM,
   paperSize: SizeMM
 ): ResolvedExportOptions {
-  const paper = orientedPaperSize(paperSize, state.orientation, bookSize);
+  // Orientation and page density from one resolver: `auto` has to be allowed to
+  // pick the orientation that fits the denser grid, or a 4-up project exports
+  // the 2-up sheet its preview never showed.
+  const { paper, layout } = resolveSheet({
+    paper: paperSize,
+    orientation: state.orientation,
+    bookSize,
+    binding: state.binding,
+    setting: state.pagesPerSide,
+    bleedMm: state.bleedMm,
+    gutterMm: state.gutterMm,
+    showCropMarks: state.marks.showCropMarks,
+  });
 
   const isPreview = state.exportSettings.format === "preview";
   const drawMarks = !isPreview;
@@ -58,18 +70,6 @@ export function resolveExportOptions(
   const safeAreaMm = state.safeAreaMm;
   const gutterMm = state.gutterMm;
 
-  // The grid is chosen from the *print-level* bleed and mark toggles, so the
-  // preview and this export always agree, and an export that drops a guide can
-  // only ever become more conservative.
-  const layout = resolveSheetLayout({
-    paper,
-    bookSize,
-    binding: state.binding,
-    setting: state.pagesPerSide,
-    bleedMm: state.bleedMm,
-    gutterMm: state.gutterMm,
-    showCropMarks: state.marks.showCropMarks,
-  });
   const plan = planImposition(state.pages.length, state.binding, state.signatureSize, state.bindingDirection, {
     slotsPerSide: layout.slotsPerSide,
   });

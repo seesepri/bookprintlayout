@@ -3,7 +3,7 @@ import { useProject } from "../../../state/ProjectContext";
 import { planImposition } from "../../../lib/imposition";
 import { gridSheetSize, normalizePagesPerSide } from "../../../lib/nup";
 import { geometryConstants } from "../../../lib/geometry";
-import { orientedPaperSize, resolveSheetLayout } from "../../../lib/previewHelpers";
+import { resolveSheet } from "../../../lib/previewHelpers";
 import { Orientation, PresetBookSize, PresetPaperSize } from "../../../types";
 import { PanelSection, Field, Select, NumberField } from "./PanelShell";
 
@@ -15,14 +15,11 @@ export default function BookSettingsPanel() {
 
   // Resolved exactly like the exporter and the canvas do, so this estimate is
   // the sheet that gets printed and not a rounded guess.
-  const paper = useMemo(
-    () => orientedPaperSize(activePaperSize, state.orientation, activeBookSize),
-    [activePaperSize, state.orientation, activeBookSize]
-  );
-  const layout = useMemo(
+  const { paper, layout } = useMemo(
     () =>
-      resolveSheetLayout({
-        paper,
+      resolveSheet({
+        paper: activePaperSize,
+        orientation: state.orientation,
         bookSize: activeBookSize,
         binding: state.binding,
         setting: state.pagesPerSide,
@@ -30,7 +27,16 @@ export default function BookSettingsPanel() {
         gutterMm: state.gutterMm,
         showCropMarks: state.marks.showCropMarks,
       }),
-    [paper, activeBookSize, state.binding, state.pagesPerSide, state.bleedMm, state.gutterMm, state.marks.showCropMarks]
+    [
+      activePaperSize,
+      state.orientation,
+      activeBookSize,
+      state.binding,
+      state.pagesPerSide,
+      state.bleedMm,
+      state.gutterMm,
+      state.marks.showCropMarks,
+    ]
   );
   const sheetCount = useMemo(
     () =>

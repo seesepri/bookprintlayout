@@ -4,6 +4,34 @@ import { openPdfForRender, readPageExtent, renderPageThumbnail } from "./pdfRend
 /** Uploads above this size are rejected before any parsing starts. */
 export const MAX_PDF_BYTES = 150 * 1024 * 1024;
 
+/** MIME types a browser or an OS share sheet may use for a real PDF. */
+const PDF_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/x-pdf",
+  "application/acrobat",
+  "application/vnd.pdf",
+  "text/pdf",
+]);
+
+/**
+ * Is this upload worth handing to pdf.js?
+ *
+ * The old check was `file.type !== "application/pdf"`, which rejects perfectly
+ * good files: Android's share sheet, several file managers and files that came
+ * out of a ZIP hand over an empty string or `application/octet-stream` for the
+ * MIME. The extension is the more reliable signal in that case, so an
+ * uninformative type falls through to it while a type that positively names
+ * another family (image, audio, text…) is still refused up front. pdf.js is the
+ * real validator: anything that survives this and still will not parse fails
+ * there, with a message that says so.
+ */
+export function looksLikePdf(file: { type?: string | null; name?: string | null }): boolean {
+  const type = (file.type ?? "").trim().toLowerCase();
+  if (PDF_MIME_TYPES.has(type)) return true;
+  if (type && type !== "application/octet-stream") return false;
+  return /\.pdf$/i.test(file.name ?? "");
+}
+
 /**
  * Thumbnails are rasterised for at most this many pages. Every page still gets
  * a PageInfo entry, so a 900-page book is imposed and exported in full — only
@@ -94,6 +122,13 @@ export async function analyzePdf(
  * Re-rasterises thumbnails for pages restored from disk. The stored page
  * list keeps ids, order, rotation and blanks intact — only the preview images
  * are regenerated, with the same cap and yields as a fresh upload.
+ *
+ * The image for a slot must come from the source page that slot still points at
+ * (`originalIndex`), not from the slot's own position: the page browser lets the
+ * user reorder, duplicate and delete, so after a resume the array index and the
+ * source page have long since stopped matching. Rendering by position showed the
+ * right page number over the wrong page, which is exactly the kind of mistake
+ * that ends up in a printed book.
  */
 export async function rebuildThumbnails(bytes: Uint8Array, pages: PageInfo[]): Promise<PageInfo[]> {
   if (!bytes.length) return pages;
@@ -101,11 +136,16 @@ export async function rebuildThumbnails(bytes: Uint8Array, pages: PageInfo[]): P
   try {
     const next = [...pages];
     const thumbCount = Math.min(next.length, MAX_THUMBNAIL_PAGES);
-    for (let i = 1; i <= thumbCount; i++) {
-      if (next[i - 1].isBlank || next[i - 1].originalIndex === null) continue;
-      const { dataUrl } = await renderPageThumbnail(handle, i, 220);
-      next[i - 1] = { ...next[i - 1], thumbnail: dataUrl };
-      if (i % YIELD_EVERY === 0) await yieldToBrowser();
+    for (let i = 0; i < thumbCount; i++) {
+      const page = next[i];
+      if (page.isBlank || page.originalIndex === null) continue;
+      const sourcePage = page.originalIndex + 1;
+      // A record written by an older build, or a source file that shrank, must
+      // not take the whole resume down with it: skip the slot and keep the rest.
+      if (sourcePage < 1 || sourcePage > handle.numPages) continue;
+      const { dataUrl } = await renderPageThumbnail(handle, sourcePage, 220);
+      next[i] = { ...page, thumbnail: dataUrl };
+      if ((i + 1) % YIELD_EVERY === 0) await yieldToBrowser();
     }
     return next;
   } catch {

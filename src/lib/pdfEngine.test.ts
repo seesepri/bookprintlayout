@@ -147,7 +147,9 @@ describe("buildImpositionPdf", () => {
 
 describe("buildCoverPdf", () => {
   it("lays out back | spine | front with bleed on both sides", async () => {
-    const doc = await PDFDocument.load(await buildCoverPdf({ bookSize: BOOK, spineWidthMm: 12, bleedMm: 3 }));
+    const { bytes, notes } = await buildCoverPdf({ bookSize: BOOK, spineWidthMm: 12, bleedMm: 3 });
+    expect(notes).toEqual([]);
+    const doc = await PDFDocument.load(bytes);
     const { width, height } = doc.getPage(0).getSize();
     const mm = (v: number) => (v * 72) / 25.4;
     expect(width).toBeCloseTo(mm(148 * 2 + 12 + 6), 1);
@@ -158,7 +160,7 @@ describe("buildCoverPdf", () => {
     // With zero bleed the trim box is the page box, so the marks would fall off
     // the page at their nominal size; they shrink to fit instead.
     const doc = await PDFDocument.load(
-      await buildCoverPdf({ bookSize: BOOK, spineWidthMm: 12, bleedMm: 0, includeCropMarks: true })
+      (await buildCoverPdf({ bookSize: BOOK, spineWidthMm: 12, bleedMm: 0, includeCropMarks: true })).bytes
     );
     const { width, height } = doc.getPage(0).getSize();
     const mm = (v: number) => (v * 72) / 25.4;

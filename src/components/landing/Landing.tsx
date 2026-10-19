@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useProjectActions, useProjectDispatch } from "../../state/ProjectContext";
-import { handleFileUpload } from "../../lib/uploadHandler";
+import { handleFileUpload, looksLikePdf } from "../../lib/uploadHandler";
 import toast from "react-hot-toast";
 
 const FEATURES = [
@@ -67,7 +67,7 @@ export default function Landing() {
   const onFiles = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
-    if (file.type !== "application/pdf") {
+    if (!looksLikePdf(file)) {
       toast.error("Mohon unggah file PDF.");
       return;
     }

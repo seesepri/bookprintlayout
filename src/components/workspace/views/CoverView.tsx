@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { UploadCloud, ImageIcon, DownloadCloud, Loader2 } from "lucide-react";
+import { UploadCloud, ImageIcon, DownloadCloud, Loader2, Info, AlertTriangle } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
 import { Checkbox, NumberBox } from "../panels/PanelShell";
 import { buildCoverPdf, fileToBytes, bytesToBlob } from "../../../lib/pdfEngine";
 import { estimateSpineWidthMm, leavesFor } from "../../../lib/spine";
 import toast from "react-hot-toast";
 import type { CoverSettings } from "../../../types";
+import type { CoverNote } from "../../../lib/pdfEngine";
 
 type CoverFileKey = "frontFile" | "backFile" | "spineFile";
 
@@ -13,6 +14,9 @@ export default function CoverView() {
   const { state, dispatch, activeBookSize } = useProject();
   const [busy, setBusy] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // What the engine had to assume about the supplied artwork (extra pages, no
+  // bleed). Kept next to the preview so it is still readable after the toast.
+  const [notes, setNotes] = useState<CoverNote[]>([]);
 
   // Each Generate click made a new object URL that nothing ever released.
   useEffect(() => {
@@ -58,7 +62,7 @@ export default function CoverView() {
         return;
       }
 
-      const bytes = await buildCoverPdf({
+      const { bytes, notes } = await buildCoverPdf({
         bookSize: activeBookSize,
         spineWidthMm: state.cover.spineWidthMm,
         bleedMm: state.cover.bleedMm,
@@ -70,7 +74,18 @@ export default function CoverView() {
       dispatch({ type: "SET_GENERATED_COVER", bytes });
       const blob = bytesToBlob(bytes);
       setPreviewUrl(URL.createObjectURL(blob));
-      toast.success("Cover layout berhasil dibuat!");
+      setNotes(notes);
+      if (notes.length) {
+        // The cover still builds — the user asked for a file, and silently
+        // dropping pages or pretending a bleedless artwork is fine would be
+        // worse than saying what the sheet will actually print.
+        toast(notes.length === 1 ? notes[0].message : `${notes.length} catatan pada artwork cover`, {
+          icon: "⚠️",
+          duration: 7000,
+        });
+      } else {
+        toast.success("Cover layout berhasil dibuat!");
+      }
     } catch (e) {
       console.error(e);
       toast.error("Gagal membuat cover.");
@@ -99,6 +114,14 @@ export default function CoverView() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              File cover <b>tidak ikut tersimpan otomatis</b> (hanya pengaturan spine/bleed yang tersimpan). Setelah
+              reload atau tab ditutup, unggah ulang front/back/spine sebelum Generate.
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <UploadBox label="Back Cover" onChange={setFile("backFile")} file={state.cover.backFile} />
             <UploadBox label="Spine" onChange={setFile("spineFile")} file={state.cover.spineFile} />
@@ -188,6 +211,19 @@ export default function CoverView() {
               >
                 <DownloadCloud className="h-4 w-4" /> Download Cover PDF
               </button>
+              {notes.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {notes.map((note) => (
+                    <li
+                      key={`${note.slot}-${note.kind}`}
+                      className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+                    >
+                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span>{note.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           ) : (
             <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-slate-700 dark:bg-slate-800">

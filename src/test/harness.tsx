@@ -7,7 +7,10 @@ import type { PageInfo } from "../types";
 export function pagesOf(count: number): PageInfo[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `p${i}`,
-    originalIndex: i + 1,
+    // 0-based, the way `analyzePdf` records it. A fixture that offsets this by
+    // one hides exactly the bugs where a position is confused with a source
+    // page (see uploadHandler.rebuildThumbnails).
+    originalIndex: i,
     rotation: 0 as const,
     isBlank: false,
     widthPt: 420,

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
-import type { PagesPerSideSetting } from "../lib/nup";
+import { normalizePagesPerSide, type PagesPerSideSetting } from "../lib/nup";
 import { saveProject } from "../lib/persistence";
 import {
   BindingDirection,
@@ -174,7 +174,7 @@ function reducer(state: ProjectState, action: Action): ProjectState {
     case "SET_PAPER_SIZE_CUSTOM":
       return { ...state, paperSizeCustom: action.size, generatedPdf: null };
     case "SET_PAGES_PER_SIDE":
-      return { ...state, pagesPerSide: action.value, generatedPdf: null };
+      return { ...state, pagesPerSide: normalizePagesPerSide(action.value), generatedPdf: null };
     case "SET_ORIENTATION":
       return { ...state, orientation: action.orientation, generatedPdf: null };
     case "SET_BINDING":

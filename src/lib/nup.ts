@@ -15,6 +15,22 @@ export const QUAD_GRID: GridSpec = { cols: 2, rows: 2 };
 /** User intent for the layout density. */
 export type PagesPerSideSetting = "auto" | 2 | 4;
 
+/**
+ * Coerce whatever reached us into the numeric union above.
+ *
+ * A `<select>` always yields a string, and a project saved by an earlier build
+ * can still hold `"4"`. Every comparison in `chooseGrid` is `=== 4` / `=== 2`,
+ * so an unconverted `"4"` used to fall through to the folded-binding spread:
+ * the dropdown said "4 per side" while the sheet stayed 2-up.
+ */
+export function normalizePagesPerSide(value: unknown): PagesPerSideSetting {
+  const text = typeof value === "number" ? String(value) : value;
+  if (text === "4") return 4;
+  if (text === "2") return 2;
+  if (typeof value === "number" && Number.isFinite(value)) return value >= 4 ? 4 : value >= 2 ? 2 : "auto";
+  return "auto";
+}
+
 export type GridReason = "quad" | "pair-fits-only" | "pair-folded" | "pair-forced" | "quad-forced";
 
 export interface GridChoice {
@@ -111,9 +127,12 @@ export function chooseGrid(
   paper: SizeMM,
   bookSize: SizeMM,
   binding: BindingType,
-  setting: PagesPerSideSetting = "auto",
+  settingInput: PagesPerSideSetting = "auto",
   room: GridRoom = { bleedMm: 0, gutterMm: 0, marksRoomMm: 0 }
 ): GridChoice {
+  // Values can arrive as strings ("4") from a <select> or an old save; the
+  // decisions below only compare numbers.
+  const setting = normalizePagesPerSide(settingInput);
   /*
    * A four-up sheet is trimmed along the page edges, so the crop-mark reserve
    * must not decide whether the pages fit: 2x2 A5 on A3 portrait measures

@@ -81,6 +81,12 @@ describe("mergeRestoredState", () => {
     expect(restored.pages).toHaveLength(8);
   });
 
+  it("repairs a pages-per-side value an older save wrote as a string", () => {
+    const saved = toSavedState(state());
+    const restored = mergeRestoredState({ ...saved, pagesPerSide: "4" as unknown as 4 });
+    expect(restored.pagesPerSide).toBe(4);
+  });
+
   it("never resumes an in-flight or completed generation", () => {
     const restored = mergeRestoredState(
       toSavedState(

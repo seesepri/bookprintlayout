@@ -68,13 +68,13 @@ export default function Sidebar() {
       )}
     >
       {/*
-        The header is the toggle. Closed it is the logo alone, and hovering swaps
-        the logo for the open icon in the very same 36 px box — so the control
-        never moves or changes size when it is used. Open, the logo stays put and
-        the close icon sits beside it inside the same button.
+        Closed, the logo *is* the control: hovering it swaps the mark for the open
+        icon inside the same 36 px box, so the hit area never moves. Open, the
+        logo is branding again and the toggle moves to the far right of the
+        header, where it stays out of the way of the step list.
       */}
       {collapsed ? (
-        <div className="flex h-[57px] shrink-0 items-center justify-center border-b border-slate-200">
+        <div className="flex h-14 shrink-0 items-center justify-center border-b border-slate-200">
           <button
             onClick={() => setCollapsedForSession(false)}
             aria-label="Buka sidebar"
@@ -90,20 +90,20 @@ export default function Sidebar() {
           </button>
         </div>
       ) : (
-        <div className="flex h-[57px] shrink-0 items-center border-b border-slate-200 px-3">
+        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 px-3">
+          <img src="/logo.png" alt="seebook" className="h-8 w-8 shrink-0 object-cover" />
           <button
             onClick={() => setCollapsedForSession(true)}
             aria-label="Tutup sidebar"
             title="Tutup sidebar"
-            className="flex w-full items-center gap-2 rounded-lg px-1 py-1 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="ml-auto rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           >
-            <img src="/logo.png" alt="seebook" className="h-8 w-8 shrink-0 object-cover" />
-            <PanelLeftClose className="h-4 w-4 text-slate-400" />
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         </div>
       )}
 
-      <nav className={cn("workspace-nav flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden py-3", collapsed ? "px-2" : "px-2.5")}>
+      <nav className={cn("workspace-nav flex-1 space-y-1 overflow-y-auto overflow-x-hidden py-3", collapsed ? "px-2" : "px-2.5")}>
         {MENU.map((item) => {
           const Icon = item.icon;
           const active = state.activeView === item.key;

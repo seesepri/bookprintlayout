@@ -33,6 +33,8 @@ export interface SheetGeometry {
   cropMarks: CropMarkGeometry[];
   /** Internal row boundaries (mm from the bottom) — cut lines on a denser grid. */
   cutLines?: number[];
+  /** Trim block (mm from the bottom-left); only a denser grid has one. */
+  block?: RectMM;
   cropGapMm: number;
   cropLengthMm: number;
   foldX: number;
@@ -308,6 +310,7 @@ function buildGridGeometry(
     backSlots: back,
     cropMarks,
     cutLines,
+    block: rect(originX, originY, blockW, blockH),
     cropGapMm: CROP_GAP_MM,
     cropLengthMm: CROP_LENGTH_MM,
     foldX: originX + blockW / 2,

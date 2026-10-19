@@ -468,8 +468,20 @@ export default function PreviewCanvas() {
                     {geometry && sidePlacements.length > 0 && <>{sidePlacements.map(renderPlacement)}</>}
                     {state.marks.showFoldMarks && isFolded && geometry && (
                       <div
-                        className="pointer-events-none absolute top-0 z-10 h-full border-l border-dashed border-violet-400"
-                        style={{ left: geometry.foldX * scale }}
+                        className={
+                          geometry.block
+                            ? "pointer-events-none absolute z-10 border-l border-slate-500"
+                            : "pointer-events-none absolute top-0 z-10 h-full border-l border-dashed border-violet-400"
+                        }
+                        style={{
+                          left: geometry.foldX * scale,
+                          ...(geometry.block
+                            ? {
+                                top: (paper.height - (geometry.block.y + geometry.block.height)) * scale,
+                                height: geometry.block.height * scale,
+                              }
+                            : {}),
+                        }}
                       />
                     )}
                     {state.marks.showRegistrationMarks && (
@@ -495,8 +507,12 @@ export default function PreviewCanvas() {
                       geometry?.cutLines?.map((y, i) => (
                         <div
                           key={`cut-${i}`}
-                          className="pointer-events-none absolute left-0 z-10 w-full border-t border-dashed border-amber-500"
-                          style={{ top: (paper.height - y) * scale }}
+                          className="pointer-events-none absolute z-10 border-t border-slate-500"
+                          style={{
+                            left: (geometry.block?.x ?? 0) * scale,
+                            width: (geometry.block?.width ?? paper.width) * scale,
+                            top: (paper.height - y) * scale,
+                          }}
                         />
                       ))}
                     {state.marks.showCropMarks && geometry && (

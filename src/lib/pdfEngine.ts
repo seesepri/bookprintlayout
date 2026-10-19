@@ -44,7 +44,7 @@ const SAFE_COLOR = rgb(0.2, 0.55, 0.95);
 const BLEED_COLOR = rgb(0.9, 0.2, 0.25);
 const FOLD_COLOR = rgb(0.45, 0.35, 0.85);
 const CENTER_COLOR = rgb(0.35, 0.35, 0.35);
-const CUT_COLOR = rgb(0.55, 0.4, 0.1);
+const CUT_COLOR = rgb(0.25, 0.25, 0.25);
 const CROP_GAP_MM = 2;
 const CROP_LENGTH_MM = 5;
 
@@ -326,15 +326,16 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
     });
 
     if (outputMarks.showCropMarks) drawCropMarks(page, geometry.cropMarks, mmToPt(CROP_GAP_MM), mmToPt(CROP_LENGTH_MM));
-    // The sheet is guillotined along every internal row boundary, so the fold
-    // line and the cut line must be tellable apart at a glance.
+    // Imposition hairlines: a denser sheet is cut on every internal row
+    // boundary, and the rule only spans the trim block (plus the ticks the crop
+    // marks already put at its ends) so nothing bleeds into the paper margin.
+    const block = geometry.block;
     for (const y of geometry.cutLines ?? []) {
       page.drawLine({
-        start: { x: 0, y: mmToPt(y) },
-        end: { x: sheetWidthPt, y: mmToPt(y) },
-        thickness: 0.35,
+        start: { x: mmToPt(block?.x ?? 0), y: mmToPt(y) },
+        end: { x: mmToPt((block?.x ?? 0) + (block?.width ?? paperSize.width)), y: mmToPt(y) },
+        thickness: 0.3,
         color: CUT_COLOR,
-        dashArray: [4, 3],
       });
     }
     if (outputMarks.showRegistrationMarks) drawRegistrationMarks(page, sheetWidthPt, sheetHeightPt, regInsetPt);
@@ -348,12 +349,17 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
       });
     }
     if (outputMarks.showFoldMarks && isFolded) {
+      // A 2x2 sheet draws the fold as a hairline inside the trim block, matching
+      // the cut rule; the classic spread keeps the dashed violet guide.
       page.drawLine({
-        start: { x: mmToPt(geometry.foldX), y: 0 },
-        end: { x: mmToPt(geometry.foldX), y: sheetHeightPt },
-        thickness: 0.6,
-        color: FOLD_COLOR,
-        dashArray: [6, 4],
+        start: { x: mmToPt(geometry.foldX), y: geometry.block ? mmToPt(geometry.block.y) : 0 },
+        end: {
+          x: mmToPt(geometry.foldX),
+          y: geometry.block ? mmToPt(geometry.block.y + geometry.block.height) : sheetHeightPt,
+        },
+        thickness: geometry.block ? 0.3 : 0.6,
+        color: geometry.block ? CUT_COLOR : FOLD_COLOR,
+        dashArray: geometry.block ? undefined : [6, 4],
       });
     }
   };

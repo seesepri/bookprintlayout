@@ -281,6 +281,13 @@ describe("4-up head-to-head: the band turn is a setting, not a given", () => {
     expect(g.cropMarks).toEqual(h.cropMarks);
   });
 
+  it("reports the trim block the hairlines span", () => {
+    const g = buildSheetGeometry({ ...base, sheet, grid: QUAD_GRID });
+    expect(g.block).toEqual({ x: 14, y: 32, width: 296, height: 420 });
+    expect(g.cutLines).toEqual([242]);
+    expect(g.foldX).toBe(162);
+  });
+
   it("leaves the pair spread without cut lines", () => {
     const pair = planImposition(8, "booklet", 16, "left", { slotsPerSide: 2 }).sheets[0];
     const g = buildSheetGeometry({ ...base, sheet: pair });

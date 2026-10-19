@@ -4,8 +4,9 @@ import { planImposition } from "../../../lib/imposition";
 import { gridSheetSize, normalizePagesPerSide } from "../../../lib/nup";
 import { geometryConstants } from "../../../lib/geometry";
 import { resolveSheet } from "../../../lib/previewHelpers";
-import { Orientation, PresetBookSize, PresetPaperSize } from "../../../types";
+import type { Orientation, PresetBookSize, PresetPaperSize } from "../../../types";
 import { PanelSection, Field, Select, NumberField } from "./PanelShell";
+import { InfoTip } from "../../ui/InfoTip";
 
 const BOOK_PRESETS: PresetBookSize[] = ["A4", "A5", "A6", "B5", "Letter", "Custom"];
 const PAPER_PRESETS: PresetPaperSize[] = ["A4", "A3", "A2", "F4", "SRA3", "Custom"];
@@ -60,8 +61,8 @@ export default function BookSettingsPanel() {
   });
 
   return (
-    <div className="settings-panel flex max-h-[46vh] h-auto w-full shrink-0 flex-col overflow-y-auto border-t md:max-h-none md:h-full md:w-[300px] lg:w-[340px] xl:w-[360px] md:border-t-0 md:border-l border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <PanelSection title="Book Size (Trim Size)">
+    <div className="settings-panel flex h-auto max-h-[46vh] w-full shrink-0 flex-col overflow-y-auto border-t border-slate-200 bg-white md:h-full md:max-h-none md:w-[320px] md:border-l md:border-t-0 lg:w-[340px] dark:border-slate-800 dark:bg-slate-900">
+      <PanelSection title="Ukuran Buku">
         <Select
           value={state.bookSizePreset}
           onChange={(e) => dispatch({ type: "SET_BOOK_SIZE_PRESET", preset: e.target.value as PresetBookSize })}
@@ -75,26 +76,26 @@ export default function BookSettingsPanel() {
         {state.bookSizePreset === "Custom" ? (
           <div className="grid grid-cols-2 gap-2">
             <NumberField
-              label="Width (mm)"
+              label="Lebar (mm)"
               value={state.bookSizeCustom.width}
               range={{ min: 20, max: 2000, step: 0.1 }}
               onCommit={width => dispatch({ type: "SET_BOOK_SIZE_CUSTOM", size: { ...state.bookSizeCustom, width } })}
             />
             <NumberField
-              label="Height (mm)"
+              label="Tinggi (mm)"
               value={state.bookSizeCustom.height}
               range={{ min: 20, max: 2000, step: 0.1 }}
               onCommit={height => dispatch({ type: "SET_BOOK_SIZE_CUSTOM", size: { ...state.bookSizeCustom, height } })}
             />
           </div>
         ) : (
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
             {activeBookSize.width} × {activeBookSize.height} mm
           </div>
         )}
       </PanelSection>
 
-      <PanelSection title="Paper Size (Print Sheet)">
+      <PanelSection title="Ukuran Kertas">
         <Select
           value={state.paperSizePreset}
           onChange={(e) => dispatch({ type: "SET_PAPER_SIZE_PRESET", preset: e.target.value as PresetPaperSize })}
@@ -108,75 +109,93 @@ export default function BookSettingsPanel() {
         {state.paperSizePreset === "Custom" ? (
           <div className="grid grid-cols-2 gap-2">
             <NumberField
-              label="Width (mm)"
+              label="Lebar (mm)"
               value={state.paperSizeCustom.width}
               range={{ min: 20, max: 2000, step: 0.1 }}
               onCommit={width => dispatch({ type: "SET_PAPER_SIZE_CUSTOM", size: { ...state.paperSizeCustom, width } })}
             />
             <NumberField
-              label="Height (mm)"
+              label="Tinggi (mm)"
               value={state.paperSizeCustom.height}
               range={{ min: 20, max: 2000, step: 0.1 }}
               onCommit={height => dispatch({ type: "SET_PAPER_SIZE_CUSTOM", size: { ...state.paperSizeCustom, height } })}
             />
           </div>
         ) : (
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60">
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
             {activePaperSize.width} × {activePaperSize.height} mm
           </div>
         )}
 
-        <Field label="Pages per sheet side">
+        <Field
+          label={
+            <>
+              Halaman per Sisi
+              <InfoTip
+                label="halaman per sisi"
+                text="Satu sisi lembar bisa memuat satu spread (2 halaman) atau grid 2×2 (4 halaman). Untuk binding lipatan, 4 per sisi dicetak head-to-head: baris atas terbalik 180° dan kolomnya dicerminkan, jadi satu lipatan di tengah sudah menghasilkan urutan baca yang benar."
+              />
+            </>
+          }
+        >
           <Select
             value={state.pagesPerSide}
             onChange={(e) => dispatch({ type: "SET_PAGES_PER_SIDE", value: normalizePagesPerSide(e.target.value) })}
           >
-            <option value="auto">Auto — {folded ? "2 per sisi (spread)" : "4 per sisi kalau muat"}</option>
-            <option value="2">2 per side (side-by-side spread)</option>
+            <option value="auto">Auto</option>
+            <option value="2">2 per sisi</option>
             <option value="4" disabled={nestedSignature}>
-              4 per side (2 × 2 grid){folded ? " — head-to-head" : ""}
+              4 per sisi
             </option>
           </Select>
           {nestedSignature ? (
-            <p className="mt-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
-              Binding <b>Signature</b> tetap spread 2 per sisi: lembaran-nya bersarang dan kena creep, jadi menambah
-              slot mengubah lembar mana duduk di mana. Pakai <i>Booklet</i> atau <i>Saddle-stitch</i> untuk 4 per sisi.
+            <p className="mt-1.5 flex items-start gap-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+              <span>Signature selalu spread 2 per sisi.</span>
+              <InfoTip
+                label="signature 2 per sisi"
+                text="Lembar pada binding Signature bersarang dan terkena creep, jadi menambah slot mengubah lembar mana duduk di mana. Pakai Booklet atau Saddle-stitch untuk 4 per sisi."
+              />
             </p>
-          ) : folded && layout.slotsPerSide === 2 ? (
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-              {state.binding}: 2 per sisi (satu spread per sisi). Pilih <b>4 per side</b> untuk menumpuk dua spread dalam
-              satu lembar {paper.width}×{paper.height} mm — baris atas dicetak kepala-ke-kepala, jadi cukup dilipat
-              sekali di garis tengah tanpa dipotong.
+          ) : (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+              {folded
+                ? layout.slotsPerSide > 2
+                  ? `${layout.slotsPerSide * 2} halaman/lembar · lipat sekali di tengah`
+                  : "1 spread per sisi"
+                : `${layout.slotsPerSide} halaman per sisi`}
+              {folded && layout.slotsPerSide === 2 && (
+                <>
+                  {" · "}
+                  <span className="text-slate-500 dark:text-slate-400">4 per sisi butuh kertas lebih besar</span>
+                </>
+              )}
             </p>
-          ) : folded ? (
-            <p className="mt-1 text-[11px] leading-relaxed text-indigo-500 dark:text-indigo-400">
-              {state.quadHeadToHead
-                ? `Head-to-head aktif: ${layout.slotsPerSide * 2} halaman per lembar (2 spread per sisi), baris atas terbalik 180°. Lipat lembar di garis tengah vertikal, urutan baca sudah benar tanpa potong.`
-                : `Baris atas dicetak tegak: ${layout.slotsPerSide * 2} halaman per lembar. Potong di garis potong horizontal, lalu putar salah satu bagian 180° sebelum dilipat.`}
-            </p>
-          ) : null}
+          )}
         </Field>
 
         {folded && layout.slotsPerSide > 2 && (
-          <Field label="Baris atas">
+          <Field
+            label={
+              <>
+                Baris Atas
+                <InfoTip
+                  label="baris atas"
+                  text="Head-to-head: baris atas diputar 180° supaya kedua band bertemu kepala-ke-kepala — cukup dilipat sekali, tanpa potong. Tegak: kedua baris dicetak tegak, potong di tick batas baris lalu putar salah satu bagian 180° sendiri. Lembar 4-up dicetak mark saja, tanpa garis melintang di atas artwork."
+                />
+              </>
+            }
+          >
             <Select
               value={state.quadHeadToHead ? "head-to-head" : "upright"}
               onChange={(e) => dispatch({ type: "SET_QUAD_HEAD_TO_HEAD", value: e.target.value === "head-to-head" })}
             >
-              <option value="head-to-head">Head-to-head — lipat sekali, tanpa potong</option>
-              <option value="upright">Tegak — potong tengah, saya balik sendiri</option>
+              <option value="head-to-head">Head-to-head (lipat)</option>
+              <option value="upright">Tegak (potong)</option>
             </Select>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-              {state.quadHeadToHead
-                ? "Baris atas diputar 180° supaya kedua band bertemu kepala-ke-kepala."
-                : "Kedua baris dicetak tegak; potong di tick batas baris, lalu putar salah satu bagian."}{" "}
-              4-up dicetak mark saja: tick kiri-kanan di batas baris jadi patokan potong, tanpa garis melintang di atas
-              artwork.
-            </p>
           </Field>
         )}
 
-        <Field label="Orientation">
+        <Field label="Orientasi">
           <Select
             value={state.orientation}
             onChange={(e) => dispatch({ type: "SET_ORIENTATION", orientation: e.target.value as Orientation })}
@@ -188,34 +207,40 @@ export default function BookSettingsPanel() {
         </Field>
       </PanelSection>
 
-      <PanelSection title="Perkiraan Sheet Dibutuhkan">
-        <div className="space-y-1.5 rounded-lg bg-indigo-50 p-3 text-xs text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-          <p>
-            Setiap lembar {paper.width}×{paper.height} mm memuat <b>{layout.slotsPerSide} halaman</b> ({layout.grid.cols}×
-            {layout.grid.rows}) per sisi — {layout.slotsPerSide * 2} halaman per lembar,{" "}
-            <b>{sheetCount} lembar</b> untuk {state.pages.length} halaman.
+      <PanelSection title="Perkiraan Lembar">
+        <div className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
+          <p className="flex items-center gap-1 font-semibold">
+            {sheetCount} lembar
+            <InfoTip
+              label="perkiraan lembar"
+              text={`Setiap lembar ${paper.width}×${paper.height} mm memuat ${layout.slotsPerSide} halaman (${layout.grid.cols}×${layout.grid.rows}) per sisi — ${layout.slotsPerSide * 2} halaman per lembar — untuk ${state.pages.length} halaman.`}
+            />
           </p>
-          {layout.reason === "pair-folded" && !nestedSignature && (
-            <p className="text-indigo-500 dark:text-indigo-400">
-              Satu spread per sisi. Pilih <b>4 per side</b> untuk menumpuk dua spread dalam satu lembar: baris atas
-              dicetak head-to-head, cukup dilipat sekali di garis tengah.
-            </p>
-          )}
-          {layout.reason === "pair-fits-only" && (
-            <p className="text-indigo-500 dark:text-indigo-400">
-              4 halaman per sisi butuh lembar {quadNeed.width.toFixed(1)}×{quadNeed.height.toFixed(1)} mm; kertas{" "}
-              {paper.width}×{paper.height} mm belum cukup (ukuran buku {activeBookSize.width}×{activeBookSize.height}{" "}
-              mm, bleed {state.bleedMm} mm).
-            </p>
-          )}
-          {layout.marksClipped && (
-            <p className="text-amber-600 dark:text-amber-400">
-              Crop marks tidak kebagian ruang di lembar ini, jadi mark yang tidak muat dilewati.{" "}
-              {quadMarksNeed.width.toFixed(1)}×{quadMarksNeed.height.toFixed(1)} mm dibutuhkan supaya mark ikut tampil{" "}
-              — atau potong lembar mengikuti tepi halaman trim.
-            </p>
-          )}
+          <p className="mt-1 text-indigo-600 dark:text-indigo-300">
+            {layout.grid.cols}×{layout.grid.rows} · {layout.slotsPerSide * 2} halaman/lembar
+          </p>
         </div>
+
+        {layout.reason === "pair-fits-only" && (
+          <p className="flex items-start gap-1 text-[11px] leading-relaxed text-indigo-500 dark:text-indigo-400">
+            <span>
+              4 per sisi butuh kertas {quadNeed.width.toFixed(1)}×{quadNeed.height.toFixed(1)} mm.
+            </span>
+            <InfoTip
+              label="kenapa belum 4-up"
+              text={`Kertas ${paper.width}×${paper.height} mm belum cukup untuk ukuran buku ${activeBookSize.width}×${activeBookSize.height} mm dengan bleed ${state.bleedMm} mm.`}
+            />
+          </p>
+        )}
+        {layout.marksClipped && (
+          <p className="flex items-start gap-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+            <span>Crop mark tidak kebagian ruang, jadi dilewati.</span>
+            <InfoTip
+              label="crop mark terpotong"
+              text={`${quadMarksNeed.width.toFixed(1)}×${quadMarksNeed.height.toFixed(1)} mm dibutuhkan supaya mark ikut tampil — atau potong lembar mengikuti tepi halaman trim.`}
+            />
+          </p>
+        )}
       </PanelSection>
     </div>
   );

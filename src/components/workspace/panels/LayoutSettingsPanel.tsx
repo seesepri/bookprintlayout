@@ -1,16 +1,20 @@
 import { useMemo } from "react";
 import { useProject } from "../../../state/ProjectContext";
-import { BindingType, Orientation } from "../../../types";
+import type { BindingType, Orientation } from "../../../types";
 import { PanelSection, Select, NumberField } from "./PanelShell";
 import { computeSignatureRanges, padToMultiple } from "../../../lib/imposition";
 import { resolvePrintPlan } from "../../../lib/plan";
-import { Info } from "lucide-react";
+import { InfoTip } from "../../ui/InfoTip";
 
+/**
+ * Short labels only. The explanation that used to sit under each option lives
+ * behind the info affordance, so the choice itself is what the eye lands on.
+ */
 const BINDINGS: { key: BindingType; label: string; desc: string }[] = [
-  { key: "booklet", label: "Booklet", desc: "Halaman dicetak bolak-balik lalu dilipat menjadi satu buku sederhana." },
-  { key: "saddle-stitch", label: "Saddle Stitch", desc: "Penjilidan staples di tengah, mendukung multi-sheet & signature." },
-  { key: "perfect-binding", label: "Perfect Binding", desc: "Penjilidan lem panas, halaman disusun tunggal tanpa lipatan." },
-  { key: "signature", label: "Signature Imposition", desc: "Buku dibagi menjadi beberapa signature (grup halaman)." },
+  { key: "booklet", label: "Booklet", desc: "Dilipat jadi satu buku." },
+  { key: "saddle-stitch", label: "Saddle Stitch", desc: "Staples di tengah lipatan." },
+  { key: "perfect-binding", label: "Perfect Binding", desc: "Lem panas, tanpa lipatan." },
+  { key: "signature", label: "Signature", desc: "Dibagi beberapa signature." },
 ];
 
 const SIGNATURE_OPTIONS = [4, 8, 16, 24, 32];
@@ -57,45 +61,45 @@ export default function LayoutSettingsPanel() {
     state.binding === "signature" ? computeSignatureRanges(padToMultiple(totalRaw, 4), state.signatureSize) : [];
 
   return (
-    <div className="settings-panel flex max-h-[46vh] h-auto w-full shrink-0 flex-col overflow-y-auto border-t md:max-h-none md:h-full md:w-[300px] lg:w-[340px] xl:w-[360px] md:border-t-0 md:border-l border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <PanelSection title="Jenis Layout / Binding">
+    <div className="settings-panel flex h-auto max-h-[46vh] w-full shrink-0 flex-col overflow-y-auto border-t border-slate-200 bg-white md:h-full md:max-h-none md:w-[320px] md:border-l md:border-t-0 lg:w-[340px] dark:border-slate-800 dark:bg-slate-900">
+      <PanelSection title="Jenis Binding">
         <div className="space-y-2">
           {BINDINGS.map((b) => (
             <button
               key={b.key}
               onClick={() => dispatch({ type: "SET_BINDING", binding: b.key })}
-              className={`w-full rounded-xl border px-3.5 py-3 text-left transition ${
+              className={`w-full rounded-lg border px-3.5 py-2.5 text-left transition ${
                 state.binding === b.key
-                  ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40"
-                  : "border-slate-200 hover:border-slate-300 dark:border-slate-700"
+                  ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500/20 dark:bg-indigo-950/40"
+                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60"
               }`}
             >
-              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{b.label}</div>
-              <div className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-slate-400">{b.desc}</div>
+              <div className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">{b.label}</div>
+              <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{b.desc}</div>
             </button>
           ))}
         </div>
       </PanelSection>
 
       {state.binding === "signature" && (
-        <PanelSection title="Signature Size">
-          <div className="flex flex-wrap gap-2">
+        <PanelSection title="Ukuran Signature">
+          <div className="flex flex-wrap gap-1.5">
             {SIGNATURE_OPTIONS.map((n) => (
               <button
                 key={n}
                 onClick={() => dispatch({ type: "SET_SIGNATURE_SIZE", size: n })}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${
                   state.signatureSize === n
                     ? "border-indigo-500 bg-indigo-600 text-white"
-                    : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                    : "border-slate-200 text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:text-slate-300"
                 }`}
               >
-                {n} Pages
+                {n}
               </button>
             ))}
           </div>
           <NumberField
-            label="Custom Signature Size"
+            label="Custom"
             value={state.signatureSize}
             range={{ min: 4, max: 200 }}
             onCommit={(size) => dispatch({ type: "SET_SIGNATURE_SIZE", size })}
@@ -103,31 +107,36 @@ export default function LayoutSettingsPanel() {
         </PanelSection>
       )}
 
-      <PanelSection title="Ringkasan Imposition">
-        <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-          <Row label="Total Halaman Asli" value={String(totalRaw)} />
-          <Row label="Halaman per Lembar" value={`${neededMultiple} halaman (${layout.grid.cols}×${layout.grid.rows})`} />
-          <Row label="Blank Ditambahkan" value={String(blanks)} />
-          <Row label="Total Setelah Padding" value={String(padded)} />
-        </div>
+      <PanelSection title="Ringkasan">
+        <dl className="space-y-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          <Row label="Halaman" value={String(totalRaw)} />
+          <Row label="Per Lembar" value={`${neededMultiple} (${layout.grid.cols}×${layout.grid.rows})`} />
+          <Row label="Halaman Kosong" value={String(blanks)} />
+          <Row label="Setelah Padding" value={String(padded)} />
+        </dl>
         {blanks > 0 && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Sistem otomatis menambahkan {blanks} halaman kosong agar jumlah halaman pas kelipatan {neededMultiple}
-            {signatureNote}.
+          <div className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+            <span>
+              Ditambah {blanks} halaman kosong agar pas kelipatan {neededMultiple}
+              {signatureNote}.
+            </span>
+            <InfoTip
+              label="padding"
+              text="Padding bersifat virtual: engine tetap mem-padding kalau Anda tidak menambahkannya. Tombol di halaman Pages hanya membuat halaman kosongnya nyata, untuk file yang harus genap."
+            />
           </div>
         )}
 
         {state.binding === "signature" && signatureRanges.length > 0 && (
-          <div className="mt-3 space-y-1.5">
+          <div className="space-y-1.5">
             {signatureRanges.map((sig) => (
               <div
                 key={sig.index}
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700"
+                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] dark:border-slate-700"
               >
                 <span className="font-semibold text-slate-600 dark:text-slate-300">Signature {sig.index}</span>
                 <span className="text-slate-400">
-                  Page {sig.startPage}–{sig.endPage}
+                  Hal. {sig.startPage}–{sig.endPage}
                 </span>
               </div>
             ))}
@@ -135,7 +144,7 @@ export default function LayoutSettingsPanel() {
         )}
       </PanelSection>
 
-      <PanelSection title="Paper Orientation">
+      <PanelSection title="Orientasi Kertas">
         <Select
           value={state.orientation}
           onChange={(e) => dispatch({ type: "SET_ORIENTATION", orientation: e.target.value as Orientation })}
@@ -152,8 +161,8 @@ export default function LayoutSettingsPanel() {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span>{label}</span>
-      <span className="font-semibold text-slate-800 dark:text-slate-100">{value}</span>
+      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd className="font-semibold text-slate-800 dark:text-slate-100">{value}</dd>
     </div>
   );
 }

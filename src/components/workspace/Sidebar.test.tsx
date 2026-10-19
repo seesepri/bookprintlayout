@@ -8,10 +8,11 @@ import Sidebar from "./Sidebar";
 describe("Sidebar", () => {
   it("lists every workspace step and switches view on click", () => {
     renderWithProject(<Sidebar />);
-    for (const label of ["Upload PDF", "Pages", "Layout Settings", "Book Settings", "Print Settings", "Cover", "Export"]) {
-      expect(screen.getByText(label)).toBeDefined();
+    for (const label of ["Upload", "Halaman", "Layout", "Ukuran Buku", "Cetak", "Cover", "Ekspor"]) {
+      // By role and exact name: the brand wordmark also contains "Layout".
+      expect(screen.getByRole("button", { name: label })).toBeDefined();
     }
-    fireEvent.click(screen.getByText("Export"));
+    fireEvent.click(screen.getByRole("button", { name: "Ekspor" }));
     expect(screen.getByTestId("probe").getAttribute("data-view")).toBe("export");
   });
 

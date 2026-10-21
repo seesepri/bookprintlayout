@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
 import { normalizePagesPerSide, type PagesPerSideSetting } from "../lib/nup";
 import { clampZoom, zoomStep } from "../lib/previewHelpers";
-import { saveProject } from "../lib/persistence";
+import toast from "react-hot-toast";
+import { saveProject, type AutosaveFailure } from "../lib/persistence";
 import {
   BindingDirection,
   BindingType,
@@ -275,6 +276,18 @@ const COALESCABLE = new Set<Action["type"]>([
 ]);
 
 const AUTOSAVE_MS = 800;
+/** Stable id so repeated failures replace one toast instead of stacking. */
+const AUTOSAVE_TOAST_ID = "autosave-failed";
+
+/**
+ * Says what went wrong and what it costs, because the consequence — work that
+ * survives on screen but not on disk — is not visible from the workspace.
+ */
+function autosaveMessage(reason: AutosaveFailure): string {
+  if (reason === "quota") return "Simpanan otomatis gagal: penyimpanan perangkat penuh. Pekerjaan ini hilang kalau halaman di-reload.";
+  if (reason === "blocked") return "Simpanan otomatis gagal: penyimpanan diblokir atau tidak tersedia (mis. mode privat). Pekerjaan ini hilang kalau halaman di-reload.";
+  return "Simpanan otomatis gagal. Pekerjaan ini hilang kalau halaman di-reload.";
+}
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [state, baseDispatch] = useReducer(reducer, initialState);
@@ -312,9 +325,19 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       hydratedRef.current = false;
       return;
     }
-    const id = setTimeout(() => {
-      void saveProject(state).catch(() => {
-        /* quota or blocked storage: layout work continues in memory */
+    const id = setTimeout(async () => {
+      const result = await saveProject(state);
+      if (result.ok) {
+        // Recovered, or never failed: drop any warning left over from earlier.
+        toast.dismiss(AUTOSAVE_TOAST_ID);
+        return;
+      }
+      // One id, so the 800 ms retry loop refreshes a single toast instead of
+      // stacking one every save.
+      toast.error(autosaveMessage(result.reason), {
+        id: AUTOSAVE_TOAST_ID,
+        duration: 5000,
+        style: { maxWidth: "420px" },
       });
     }, AUTOSAVE_MS);
     return () => clearTimeout(id);

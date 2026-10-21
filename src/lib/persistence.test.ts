@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { initialState, type ProjectState } from "../state/ProjectContext";
 import type { PageInfo } from "../types";
 import {
@@ -6,6 +6,7 @@ import {
   clearProject,
   hasProject,
   loadProject,
+  markResumeSettled,
   mergeRestoredState,
   saveProject,
   toSavedState,
@@ -137,8 +138,26 @@ describe("degraded storage", () => {
   // No IndexedDB here — private-mode browsers are the same case. Autosave must
   // degrade to a no-op instead of rejecting inside a React effect.
   it("writes, reads and clears without throwing", async () => {
-    await expect(saveProject(state())).resolves.toBeUndefined();
     await expect(loadProject()).resolves.toBeNull();
     await expect(clearProject()).resolves.toBeUndefined();
+  });
+
+  // The whole point of the result value: silence here used to mean a user could
+  // work for an hour and lose everything on reload with nothing on screen.
+  it("reports the failure and names the cause instead of resolving quietly", async () => {
+    // Writes are held back until boot has read the old record; past that point a
+    // failure to store has to reach the caller.
+    markResumeSettled();
+    await expect(saveProject(state())).resolves.toEqual({ ok: false, reason: "blocked" });
+  });
+
+  it("stays quiet while boot has not finished reading the old record", async () => {
+    vi.resetModules();
+    const fresh = await import("./persistence");
+    await expect(fresh.saveProject(state())).resolves.toEqual({ ok: true });
+  });
+
+  it("still resolves when there is nothing worth saving", async () => {
+    await expect(saveProject(state({ pages: [], sourceBytes: null }))).resolves.toEqual({ ok: true });
   });
 });

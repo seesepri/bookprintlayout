@@ -23,6 +23,28 @@ const KEY_BYTES = "source";
 /** Bump when the saved shape changes incompatibly; older saves are discarded. */
 export const PROJECT_SCHEMA_VERSION = 1;
 
+/**
+ * Storage that cannot be opened at all: no IndexedDB (private mode, a locked-down
+ * embed), or another tab holding the upgrade open. Kept apart from a full disk
+ * because the two need different advice, and the user is the one who has to act.
+ */
+export class StorageBlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StorageBlockedError";
+  }
+}
+
+export type AutosaveFailure = "quota" | "blocked" | "unknown";
+
+/**
+ * Autosave never throws — a failure mid-edit must not become a crash — so it
+ * reports through this instead. `reason` exists so the message can tell "your
+ * storage is full" apart from "this browser will not store anything", which are
+ * different problems for the user to solve.
+ */
+export type AutosaveResult = { ok: true } | { ok: false; reason: AutosaveFailure };
+
 interface SourceRecord {
   fileName: string;
   bytes: Uint8Array;
@@ -75,7 +97,7 @@ function storageAvailable(): boolean {
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (!storageAvailable()) {
-      reject(new Error("IndexedDB tidak tersedia"));
+      reject(new StorageBlockedError("IndexedDB tidak tersedia"));
       return;
     }
     const request = indexedDB.open(DB_NAME, 1);
@@ -84,7 +106,7 @@ function openDb(): Promise<IDBDatabase> {
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error("IndexedDB diblokir tab lain"));
+    request.onblocked = () => reject(new StorageBlockedError("IndexedDB diblokir tab lain"));
   });
 }
 
@@ -145,11 +167,23 @@ export function markResumeSettled(): void {
   resumeSettled = true;
 }
 
-export async function saveProject(state: ProjectState): Promise<void> {
-  if (!resumeSettled) return;
+/** Maps whatever the browser threw onto something the message can act on. */
+function classifyFailure(error: unknown): AutosaveFailure {
+  if (error instanceof StorageBlockedError) return "blocked";
+  const name = error instanceof Error ? error.name : "";
+  const code = (error as { code?: number } | null)?.code;
+  // Chrome and Firefox disagree on the name of a full store; both agree on 22 / 1014.
+  if (name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED" || code === 22 || code === 1014) {
+    return "quota";
+  }
+  return "unknown";
+}
+
+export async function saveProject(state: ProjectState): Promise<AutosaveResult> {
+  if (!resumeSettled) return { ok: true };
   if (!hasProject(state)) {
     await clearProject();
-    return;
+    return { ok: true };
   }
   const { sourceBytes, ...storedState } = toSavedState(state);
   const record: StoredProject = { version: PROJECT_SCHEMA_VERSION, savedAt: Date.now(), state: storedState };
@@ -166,10 +200,14 @@ export async function saveProject(state: ProjectState): Promise<void> {
     });
     db.close();
     if (bytesChanged) lastBytesWritten = sourceBytes;
+    return { ok: true };
   } catch (error) {
-    // Autosave is best-effort: a full or blocked store must never surface as
-    // a crash in the middle of the user's work.
+    // Autosave is best-effort: a full or blocked store must never surface as a
+    // crash in the middle of the user's work. The caller gets the reason so it
+    // can warn — swallowing the error here used to mean work vanished on reload
+    // with nothing on screen suggesting anything had gone wrong.
     console.warn("Autosave dilewati:", error);
+    return { ok: false, reason: classifyFailure(error) };
   }
 }
 

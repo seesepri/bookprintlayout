@@ -9,7 +9,7 @@ import {
   degrees,
   rgb,
 } from "pdf-lib";
-import { BindingDirection, BindingType, CreepSettings, ExportFormat, MarksSettings, PageInfo, SizeMM, Sheet } from "../types";
+import { BindingDirection, BindingType, CreepSettings, ExportFormat, MarksSettings, PageInfo, PageNumberPosition, PageNumberSettings, SizeMM, Sheet } from "../types";
 import type { SignatureRange } from "../types";
 import { mmToPt } from "./paperSizes";
 import { ImpositionPlan, planImposition } from "./imposition";
@@ -28,6 +28,8 @@ export interface BuildImpositionParams {
   safeAreaMm: number;
   gutterMm: number;
   marks: MarksSettings;
+  /** Folio printing. Omitted means "no numbering", which is also the default. */
+  pageNumbers?: PageNumberSettings;
   creep?: CreepSettings;
   /** Output profile. Defaults to the full print-ready sheet. */
   mode?: ExportFormat;
@@ -70,6 +72,105 @@ async function embedUsedPages(
 
   const embedded = wanted.length ? await outDoc.embedPdf(srcDoc, wanted) : [];
   return new Map(wanted.map((srcIndex, position) => [srcIndex, embedded[position]]));
+}
+
+/**
+ * Clearance between the number and the edge it sits against.
+ *
+ * The number never comes closer than this to the trim, even with no safe area
+ * configured: a folio 2 mm from the cut line is one guillotine wobble away from
+ * being sliced off. Where a safe area is set and wider than this, the number
+ * moves inside it instead — see `folioInsetMm`.
+ */
+const PAGE_NUMBER_MIN_INSET_MM = 8;
+/** Extra clearance kept between the number and the safe-area line. */
+const PAGE_NUMBER_SAFE_GAP_MM = 2;
+
+/** Distance from the trim edge to the number for a given safe area. */
+export function folioInsetMm(safeAreaMm: number): number {
+  return Math.max(PAGE_NUMBER_MIN_INSET_MM, safeAreaMm + PAGE_NUMBER_SAFE_GAP_MM);
+}
+const PAGE_NUMBER_COLOR = rgb(0.15, 0.15, 0.15);
+
+export interface PageNumberAnchor {
+  x: number;
+  y: number;
+  /** Text rotation in degrees, matching the slot so the number reads upright. */
+  rotate: number;
+}
+
+/**
+ * Where to put one number inside a slot, in sheet points.
+ *
+ * The position is named from the page's own point of view ("top-left" is the
+ * top-left of the artwork as the reader sees it), so the anchor is worked out in
+ * the page's frame and then turned with the slot. Offsetting in sheet space
+ * instead would drop the number into the bleed on every rotated slot.
+ *
+ * The turn happens in normalised coordinates, not points. A trim box is rarely
+ * square — an A5 page in a portrait slot is 1:1.41 — and rotating a point about
+ * the centre of a non-square box in points pushes corners outside the box. In
+ * normalised space the box maps onto itself for every quarter turn; the cost is
+ * that on 90°/270° slots the 8 mm inset is 8 mm along the *short* axis scaled by
+ * the aspect ratio, which is still inside the trim and still looks deliberate.
+ */
+export function pageNumberAnchor({
+  trim,
+  position,
+  rotation,
+  fontSizePt,
+  textWidthPt,
+  safeAreaMm = 0,
+}: {
+  /**
+   * Safe-area width as the sheet geometry applied it — the value that is drawn,
+   * not the raw setting, because a hidden safe area is 0 there and must still
+   * leave the minimum clearance.
+   */
+  safeAreaMm?: number;
+  trim: { x: number; y: number; width: number; height: number };
+  position: PageNumberPosition;
+  rotation: number;
+  fontSizePt: number;
+  textWidthPt: number;
+}): PageNumberAnchor {
+  const x0 = mmToPt(trim.x);
+  const y0 = mmToPt(trim.y);
+  const w = mmToPt(trim.width);
+  const h = mmToPt(trim.height);
+  const inset = mmToPt(folioInsetMm(safeAreaMm));
+
+  const [vertical, horizontal] = position.split("-") as ["top" | "bottom", "left" | "center" | "right"];
+
+  // Normalised insets are measured against the axis each one will land on *after*
+  // the turn. A quarter turn swaps x and y, so measuring both against the
+  // unrotated box would shrink the physical clearance by the page's aspect ratio
+  // (a 1:1.5 page would keep only two thirds of it). Swapping the denominators on
+  // 90°/270° is what makes `inset` mean the same number of millimetres on every
+  // slot.
+  const quarterTurn = rotation === 90 || rotation === 270;
+  const localW = quarterTurn ? h : w;
+  const localH = quarterTurn ? w : h;
+
+  // 0..1 across the page, measured from its left and bottom edges.
+  let u = inset / localW;
+  if (horizontal === "center") u = (localW - textWidthPt) / 2 / localW;
+  else if (horizontal === "right") u = (localW - inset - textWidthPt) / localW;
+
+  // Baseline, not box top: a top number sits `inset` below the trim edge.
+  const v = vertical === "bottom" ? inset / localH : (localH - inset - fontSizePt * 0.72) / localH;
+
+  const radians = (rotation * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const du = u - 0.5;
+  const dv = v - 0.5;
+
+  return {
+    x: x0 + (0.5 + du * cos - dv * sin) * w,
+    y: y0 + (0.5 + du * sin + dv * cos) * h,
+    rotate: rotation,
+  };
 }
 
 /**
@@ -182,9 +283,15 @@ function drawPlacement(
   page: PDFPage,
   placement: PagePlacement,
   resolved: { embedded: PDFEmbeddedPage; info: PageInfo } | null,
-  marks: MarksSettings
+  marks: MarksSettings,
+  folio?: { settings: PageNumberSettings; font: PDFFont; safeAreaMm: number }
 ) {
-  if (resolved) drawEmbeddedPage(page, resolved.embedded, resolved.info, placement);
+  if (resolved) {
+    drawEmbeddedPage(page, resolved.embedded, resolved.info, placement);
+    // A blank page consumes its number but prints nothing, so the folio stays
+    // aligned with the physical sheet without stamping an empty page.
+    if (folio) drawPageNumber(page, placement, folio.settings, folio.font, folio.safeAreaMm);
+  }
 
   if (marks.showBleedArea) {
     drawDashedRect(
@@ -206,6 +313,41 @@ function drawPlacement(
       SAFE_COLOR
     );
   }
+}
+
+/**
+ * Prints one folio number inside its slot. `placement.pageNumber` is the page's
+ * position in the document (1-based), which is what the reader counts — not the
+ * sheet number, which is meaningless once the book is folded and trimmed.
+ */
+function drawPageNumber(
+  page: PDFPage,
+  placement: PagePlacement,
+  settings: PageNumberSettings,
+  font: PDFFont,
+  safeAreaMm: number
+) {
+  if (placement.pageNumber === null) return;
+  const value = settings.startAt + (placement.pageNumber - 1);
+  const text = String(value);
+  const textWidthPt = font.widthOfTextAtSize(text, settings.fontSizePt);
+  const anchor = pageNumberAnchor({
+    trim: placement.trim,
+    position: settings.position,
+    rotation: placement.rotation ?? 0,
+    fontSizePt: settings.fontSizePt,
+    textWidthPt,
+    safeAreaMm,
+  });
+
+  page.drawText(text, {
+    x: anchor.x,
+    y: anchor.y,
+    size: settings.fontSizePt,
+    font,
+    color: PAGE_NUMBER_COLOR,
+    rotate: degrees(anchor.rotate),
+  });
 }
 
 function addDividerPage(
@@ -260,6 +402,7 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
     safeAreaMm,
     gutterMm,
     marks,
+    pageNumbers,
     creep,
     mode = "print-ready",
     compress = true,
@@ -283,6 +426,11 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
     showRegistrationMarks: drawMarks && marks.showRegistrationMarks,
   };
 
+  // What the geometry actually insets by: a hidden safe area contributes nothing.
+  // The folio uses the same number, so a number that looks clear on the canvas
+  // cannot end up outside the safe area in the file.
+  const effectiveSafeAreaMm = outputMarks.showSafeArea ? safeAreaMm : 0;
+
   const outDoc = await PDFDocument.create();
   outDoc.setProducer("BookPrint Layout");
   outDoc.setCreator("BookPrint Layout");
@@ -303,6 +451,15 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
   const sheetHeightPt = mmToPt(paperSize.height);
   const isFolded = binding !== "perfect-binding";
   const dividerFont = mode === "per-signature" ? await outDoc.embedFont(StandardFonts.Helvetica) : undefined;
+  // Preview keeps the numbers: a folio is content, not a printer's mark, and an
+  // approval file that hides page numbers is not what the client is signing off.
+  const folio = pageNumbers?.enabled
+    ? {
+        settings: pageNumbers,
+        font: await outDoc.embedFont(StandardFonts.Helvetica),
+        safeAreaMm: effectiveSafeAreaMm,
+      }
+    : undefined;
 
   // Free margin around the imposed block, used to place printer's marks.
   const gridCols = Math.max(1, grid.cols);
@@ -322,7 +479,7 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
   const drawSide = (geometry: SheetGeometry, placements: PagePlacement[], pageNumbers: (number | null)[]) => {
     const page = outDoc.addPage([sheetWidthPt, sheetHeightPt]);
     placements.forEach((placement, index) => {
-      drawPlacement(page, placement, resolvePage(pageNumbers[index] ?? null), outputMarks);
+      drawPlacement(page, placement, resolvePage(pageNumbers[index] ?? null), outputMarks, folio);
     });
 
     if (outputMarks.showCropMarks) drawCropMarks(page, geometry.cropMarks, mmToPt(CROP_GAP_MM), mmToPt(CROP_LENGTH_MM));
@@ -369,7 +526,7 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
       bookSize,
       bleedMm,
       gutterMm,
-      safeAreaMm: outputMarks.showSafeArea ? safeAreaMm : 0,
+      safeAreaMm: effectiveSafeAreaMm,
       binding,
       bindingDirection,
       pages,

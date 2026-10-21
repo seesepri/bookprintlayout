@@ -82,6 +82,7 @@ type SavedState = {
   | "safeAreaMm"
   | "gutterMm"
   | "marks"
+  | "pageNumbers"
   | "creep"
   | "cover"
   | "exportSettings"
@@ -129,6 +130,7 @@ export function toSavedState(state: ProjectState): SavedState {
     safeAreaMm: state.safeAreaMm,
     gutterMm: state.gutterMm,
     marks: state.marks,
+    pageNumbers: state.pageNumbers,
     creep: state.creep,
     cover: {
       // File objects cannot be structured-cloned; their bytes live in
@@ -252,6 +254,9 @@ export function mergeRestoredState(saved: SavedState): ProjectState {
     // Saves written before the coercion existed can hold "4"/"2" strings, which
     // would silently fall back to the spread.
     pagesPerSide: normalizePagesPerSide(settings.pagesPerSide),
+    // Saves written before numbering existed carry no key at all; the defaults
+    // are spread first so an older record still resumes with numbering off.
+    pageNumbers: { ...initialState.pageNumbers, ...settings.pageNumbers },
     quadHeadToHead: settings.quadHeadToHead !== false,
     meta,
     sourceBytes,

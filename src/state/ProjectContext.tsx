@@ -12,6 +12,7 @@ import {
   MarksSettings,
   Orientation,
   PageInfo,
+  PageNumberSettings,
   PresetBookSize,
   PresetPaperSize,
   ProjectFileMeta,
@@ -46,6 +47,7 @@ export interface ProjectState {
   safeAreaMm: number;
   gutterMm: number;
   marks: MarksSettings;
+  pageNumbers: PageNumberSettings;
 
   creep: CreepSettings;
   cover: CoverSettings;
@@ -79,6 +81,7 @@ export type Action =
   | { type: "SET_SAFE_AREA"; value: number }
   | { type: "SET_GUTTER"; value: number }
   | { type: "SET_MARKS"; marks: Partial<MarksSettings> }
+  | { type: "SET_PAGE_NUMBERS"; pageNumbers: Partial<PageNumberSettings> }
   | { type: "SET_CREEP"; creep: Partial<CreepSettings> }
   | { type: "SET_COVER"; cover: Partial<CoverSettings> }
   | { type: "SET_EXPORT"; settings: Partial<ExportSettings> }
@@ -130,6 +133,8 @@ export const initialState: ProjectState = {
     showCenterLine: false,
     showRegistrationMarks: false,
   },
+  // Off by default: a number is a design decision, not a safe assumption.
+  pageNumbers: { enabled: false, position: "bottom-center", fontSizePt: 9, startAt: 1 },
 
   creep: { paperThicknessMm: 0.1, mode: "auto", manualAmountMm: 0.3 },
   cover: { spineWidthMm: 10, bleedMm: 3, includeCropMarks: true },
@@ -201,6 +206,12 @@ function reducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, gutterMm: action.value, generatedPdf: null };
     case "SET_MARKS":
       return { ...state, marks: { ...state.marks, ...action.marks }, generatedPdf: null };
+    case "SET_PAGE_NUMBERS":
+      return {
+        ...state,
+        pageNumbers: { ...state.pageNumbers, ...action.pageNumbers },
+        generatedPdf: null,
+      };
     case "SET_CREEP":
       return { ...state, creep: { ...state.creep, ...action.creep }, generatedPdf: null };
     case "SET_COVER":

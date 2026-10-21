@@ -1,10 +1,11 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { commitDraftNumber, NumberFieldRange } from "../../../lib/numberField";
 
-export function PanelSection({ title, children }: { title: string; children: ReactNode }) {
+/** `title` accepts nodes so a section heading can carry its own ⓘ. */
+export function PanelSection({ title, children }: { title: ReactNode; children: ReactNode }) {
   return (
     <section className="border-b border-slate-200 px-5 py-5 last:border-b-0">
-      <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+      <h3 className="mb-3.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
         {title}
       </h3>
       <div className="space-y-3.5">{children}</div>

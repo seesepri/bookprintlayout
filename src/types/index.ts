@@ -43,6 +43,32 @@ export interface PageInfo {
   heightPt: number;
 }
 
+/**
+ * Where a page number sits inside the trim box, named from the reader's view of
+ * the page. Rotation is applied later, so a slot printed upside down still puts
+ * the number at that slot's own top-left.
+ */
+export type PageNumberPosition =
+  | "top-left"
+  | "top-center"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right";
+
+export interface PageNumberSettings {
+  enabled: boolean;
+  position: PageNumberPosition;
+  /** Point size of the printed number. */
+  fontSizePt: number;
+  /**
+   * Printed on the first page of the document. Blank pages still consume a
+   * number — that is what keeps the folio aligned with the physical sheet — but
+   * they never print one.
+   */
+  startAt: number;
+}
+
 export interface CreepSettings {
   paperThicknessMm: number;
   mode: "auto" | "manual";

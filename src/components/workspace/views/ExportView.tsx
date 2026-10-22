@@ -76,6 +76,7 @@ export default function ExportView() {
         gutterMm: resolved.gutterMm,
         creep: state.creep,
         marks: resolved.marks,
+        pageNumbers: state.pageNumbers,
         // The split files are cut from the mark-complete sheet stack; the
         // divider pages of `per-signature` mode would only shift page indices.
         mode: canSplit ? "print-ready" : state.exportSettings.format,

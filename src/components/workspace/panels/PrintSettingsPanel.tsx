@@ -5,6 +5,17 @@ import { computeCreepShiftMm } from "../../../lib/imposition";
 import { resolvePrintPlan } from "../../../lib/plan";
 import { readNumberInput } from "../../../lib/paperSizes";
 import { InfoTip } from "../../ui/InfoTip";
+import type { PageNumberPosition } from "../../../types";
+
+/** Order matches the panel: top row, then bottom row, each left to right. */
+const PAGE_NUMBER_POSITIONS: { value: PageNumberPosition; label: string }[] = [
+  { value: "top-left", label: "Atas Kiri" },
+  { value: "top-center", label: "Atas Tengah" },
+  { value: "top-right", label: "Atas Kanan" },
+  { value: "bottom-left", label: "Bawah Kiri" },
+  { value: "bottom-center", label: "Bawah Tengah" },
+  { value: "bottom-right", label: "Bawah Kanan" },
+];
 
 export default function PrintSettingsPanel() {
   const { state, dispatch, activeBookSize, activePaperSize } = useProject();
@@ -149,6 +160,52 @@ export default function PrintSettingsPanel() {
           label="Registration Mark"
           checked={state.marks.showRegistrationMarks}
           onChange={(v) => dispatch({ type: "SET_MARKS", marks: { showRegistrationMarks: v } })}
+        />
+      </PanelSection>
+
+      <PanelSection
+        title={
+          <span className="inline-flex items-center gap-1.5">
+            Nomor Halaman
+            <InfoTip text="Nomor mengikuti urutan halaman dokumen, bukan nomor lembar. Halaman kosong tetap memakai satu nomor supaya angka cocok dengan posisi fisik, tapi angkanya tidak dicetak di halaman kosong itu." />
+          </span>
+        }
+      >
+        <Checkbox
+          label="Nomor Halaman"
+          checked={state.pageNumbers.enabled}
+          onChange={(v) => dispatch({ type: "SET_PAGE_NUMBERS", pageNumbers: { enabled: v } })}
+        />
+        <Field label="Posisi">
+          <Select
+            value={state.pageNumbers.position}
+            disabled={!state.pageNumbers.enabled}
+            onChange={(e) =>
+              dispatch({
+                type: "SET_PAGE_NUMBERS",
+                pageNumbers: { position: e.target.value as PageNumberPosition },
+              })
+            }
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            {PAGE_NUMBER_POSITIONS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <NumberField
+          label="Ukuran (pt)"
+          value={state.pageNumbers.fontSizePt}
+          range={{ min: 5, max: 24, step: 1 }}
+          onCommit={(fontSizePt) => dispatch({ type: "SET_PAGE_NUMBERS", pageNumbers: { fontSizePt } })}
+        />
+        <NumberField
+          label="Mulai dari"
+          value={state.pageNumbers.startAt}
+          range={{ min: 1, max: 9999, step: 1 }}
+          onCommit={(startAt) => dispatch({ type: "SET_PAGE_NUMBERS", pageNumbers: { startAt } })}
         />
       </PanelSection>
 

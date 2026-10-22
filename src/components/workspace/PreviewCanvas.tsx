@@ -25,6 +25,8 @@ import {
   ZOOM_MAX,
 } from "../../lib/previewHelpers";
 import { getSharedRenderDoc, renderPageThumbnail } from "../../lib/pdfRender";
+import { pageNumberAnchor } from "../../lib/pdfEngine";
+import { mmToPt } from "../../lib/paperSizes";
 import Ruler from "./Ruler";
 import { cn } from "../../utils/cn";
 
@@ -48,6 +50,16 @@ function useDevicePixelRatio(): number {
   }, [dpr]);
   return dpr;
 }
+
+/**
+ * Where the text baseline sits inside a `line-height: 1` box, as a fraction of
+ * the font size. Rendered text hangs from the *baseline*, not from the top of
+ * the box: positioning the box top at the baseline drops every number roughly a
+ * cap-height too low, which reads as "touching the safe line" at the bottom of
+ * the page and "too far from the edge" at the top. Typical sans faces put the
+ * baseline about 0.85 em below the box top at this line height.
+ */
+const BASELINE_OFFSET_EM = 0.85;
 
 export default function PreviewCanvas() {
   const { state, dispatch, activeBookSize, activePaperSize } = useProject();
@@ -291,6 +303,57 @@ export default function PreviewCanvas() {
     };
   }, [state.sourceBytes, state.pages, sharpTargets, wantedSharpWidth]);
 
+  /**
+   * The printed number, drawn on the canvas exactly where the exporter will put
+   * it. Both sides call `pageNumberAnchor`, so the preview cannot drift from the
+   * PDF: the anchor comes back in sheet points and is converted to pixels here.
+   * Fonts differ (system sans instead of Helvetica) — the 0.556 em advance of
+   * Helvetica's digits keeps the centred positions within a hair.
+   */
+  const folioFor = (placement: PagePlacement) => {
+    const { pageNumbers } = state;
+    if (!pageNumbers.enabled || placement.pageNumber === null) return null;
+
+    const text = String(pageNumbers.startAt + (placement.pageNumber - 1));
+    // Helvetica digits are 0.556 em wide.
+    const textWidthPt = pageNumbers.fontSizePt * 0.556 * text.length;
+    // The same effective safe area the exporter uses: a hidden safe marker is 0
+    // there, and the minimum clearance in `folioInsetMm` keeps the number off the
+    // trim line either way.
+    const anchor = pageNumberAnchor({
+      trim: placement.trim,
+      position: pageNumbers.position,
+      rotation: placement.rotation ?? 0,
+      fontSizePt: pageNumbers.fontSizePt,
+      textWidthPt,
+      safeAreaMm: state.marks.showSafeArea ? state.safeAreaMm : 0,
+    });
+
+    const ptToPx = (25.4 / 72) * scale;
+    const left = (anchor.x - mmToPt(placement.trim.x)) * ptToPx;
+    const baselineFromBottom = (anchor.y - mmToPt(placement.trim.y)) * ptToPx;
+    const fontSizePx = pageNumbers.fontSizePt * ptToPx;
+
+    return (
+      <span
+        className="pointer-events-none absolute select-none text-slate-800"
+        style={{
+          left,
+          // `anchor` is a baseline point, so the box top has to be raised by the
+          // baseline offset; otherwise the glyphs hang below the intended spot.
+          top: snap(placement.trim.height * scale) - baselineFromBottom - fontSizePx * BASELINE_OFFSET_EM,
+          fontSize: fontSizePx,
+          lineHeight: 1,
+          transform: `rotate(${anchor.rotate}deg)`,
+          // Turn about the baseline, which is the point the PDF rotates about.
+          transformOrigin: `0 ${fontSizePx * BASELINE_OFFSET_EM}px`,
+        }}
+      >
+        {text}
+      </span>
+    );
+  };
+
   const renderPlacement = (placement: PagePlacement) => {
     const info = getPageThumb(state.pages, placement.pageNumber);
     const artworkUrl = (placement.pageNumber ? sharp[placement.pageNumber]?.url : undefined) ?? info?.thumbnail;
@@ -338,6 +401,7 @@ export default function PreviewCanvas() {
               <span className="text-[10px] font-medium uppercase tracking-wider">{placement.pageNumber ? "Halaman" : "Kosong"}</span>
             </div>
           )}
+          {folioFor(placement)}
           {state.marks.showSafeArea && (
             <div
               className="pointer-events-none absolute border border-dashed border-sky-400"
@@ -348,11 +412,6 @@ export default function PreviewCanvas() {
                 height: placement.safe.height * scale,
               }}
             />
-          )}
-          {placement.pageNumber && (
-            <span className="absolute bottom-1 right-1.5 rounded-full bg-slate-900/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">
-              {placement.pageNumber}
-            </span>
           )}
         </div>
         {state.marks.showBleedArea && (

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { CopyPlus, FilePlus2, Repeat, RotateCw, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CopyPlus, EllipsisVertical, FilePlus2, Maximize2, Repeat, RotateCw, Trash2, X } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
 import type { PageInfo, SizeMM } from "../../../types";
 import { mmToPt } from "../../../lib/paperSizes";
@@ -29,6 +29,20 @@ export default function PagesView() {
   const [replaceValue, setReplaceValue] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [previewPage, setPreviewPage] = useState<PageInfo | null>(null);
+  const [previewZoom, setPreviewZoom] = useState(1);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const close = () => setOpenMenuId(null);
+    // Delay untuk menghindari close langsung saat klik yang membuka
+    const t = setTimeout(() => document.addEventListener("click", close), 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("click", close);
+    };
+  }, [openMenuId]);
 
   const updatePages = (pages: PageInfo[]) => dispatch({ type: "SET_PAGES", pages });
 
@@ -61,12 +75,6 @@ export default function PagesView() {
     const rotations: PageInfo["rotation"][] = [0, 90, 180, 270];
     const current = rotations.indexOf(pages[idx].rotation);
     pages[idx] = { ...pages[idx], rotation: rotations[(current + 1) % 4] };
-    updatePages(pages);
-  };
-
-  const deletePage = (idx: number) => {
-    const pages = [...state.pages];
-    pages.splice(idx, 1);
     updatePages(pages);
   };
 
@@ -177,26 +185,13 @@ export default function PagesView() {
     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-slate-900">Halaman</h2>
-            {state.pages.length > 1 && (
-              <label className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.size === state.pages.length && state.pages.length > 0}
-                  onChange={toggleSelectAll}
-                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                Pilih semua
-              </label>
-            )}
-          </div>
+          <h2 className="text-lg font-bold text-slate-900">Halaman</h2>
           <p className="text-[13px] text-slate-500">
             {state.pages.length} halaman · geser kartu untuk mengurutkan
             {selectedIds.size > 0 && <span className="ml-2 font-semibold text-indigo-600">· {selectedIds.size} dipilih</span>}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {paddingCount() > 0 && (
             <button
               onClick={padToSignature}
@@ -207,16 +202,31 @@ export default function PagesView() {
           )}
           <button
             onClick={() => insertBlank(state.pages.length - 1)}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3.5 py-2 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
+            title="Tambah halaman kosong"
+            aria-label="Tambah halaman kosong"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50 hover:text-indigo-600"
           >
-            <FilePlus2 className="h-4 w-4" /> Halaman Kosong
+            <FilePlus2 className="h-4 w-4" />
           </button>
+          {selectedIds.size > 0 && (
+            <label className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-[12px] font-semibold text-indigo-700">
+              <input
+                type="checkbox"
+                checked={selectedIds.size === state.pages.length && state.pages.length > 0}
+                onChange={toggleSelectAll}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Pilih semua
+            </label>
+          )}
           {selectedIds.size > 0 && (
             <button
               onClick={() => setConfirmBulkDelete(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-[13px] font-semibold text-red-700 transition hover:bg-red-100"
+              title={`Hapus ${selectedIds.size} halaman terpilih`}
+              aria-label={`Hapus ${selectedIds.size} halaman terpilih`}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100"
             >
-              <Trash2 className="h-4 w-4" /> Hapus {selectedIds.size} Halaman
+              <Trash2 className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -267,52 +277,69 @@ export default function PagesView() {
                   checked={selectedIds.has(p.id)}
                   onChange={() => toggleSelect(p.id)}
                   onClick={(e) => e.stopPropagation()}
-                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 opacity-0 transition group-hover:opacity-100 data-[checked]:opacity-100"
+                  style={{ opacity: selectedIds.has(p.id) ? 1 : undefined }}
                   title="Pilih halaman ini"
                 />
                 <span className="cursor-grab text-[11px] font-bold text-slate-400">#{idx + 1}</span>
               </div>
-              {p.isBlank && (
-                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-400">
-                  Kosong
-                </span>
-              )}
+              <div className="flex items-center gap-1">
+                {p.isBlank && (
+                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-400">
+                    Kosong
+                  </span>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === p.id ? null : p.id);
+                  }}
+                  className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                  title="Menu halaman"
+                  aria-label="Menu halaman"
+                >
+                  <EllipsisVertical className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
+            {openMenuId === p.id && (
+              <div
+                className="absolute right-2 top-8 z-20 w-48 rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MenuItem icon={RotateCw} label="Putar 90°" onClick={() => { rotatePage(idx); setOpenMenuId(null); }} />
+                <MenuItem icon={CopyPlus} label="Duplikat" onClick={() => { duplicatePage(idx); setOpenMenuId(null); }} />
+                <MenuItem icon={Repeat} label="Ganti halaman" onClick={() => { setReplaceTarget(idx); setReplaceValue(""); setOpenMenuId(null); }} />
+                <MenuItem icon={FilePlus2} label="Sisip halaman kosong" onClick={() => { insertBlank(idx); setOpenMenuId(null); }} />
+              </div>
+            )}
             <div className="relative flex aspect-[3/4] items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
               {p.thumbnail ? (
                 <img
                   src={p.thumbnail}
                   alt={`Halaman ${idx + 1}${p.isBlank ? " (kosong)" : ""}`}
                   className="h-full w-full object-contain"
-                  style={{ transform: `rotate(${p.rotation}deg)` }}
+                  style={{ transform: `rotate(${p.rotation}deg)`, imageRendering: "auto" as const }}
+                  loading="lazy"
                   draggable={false}
                 />
               ) : (
                 <span className="text-2xl font-black text-slate-300">—</span>
               )}
-              <div className="absolute inset-0 flex items-center justify-center gap-1 bg-slate-900/0 opacity-0 transition group-hover:bg-slate-900/40 group-hover:opacity-100">
-                <IconBtn onClick={() => rotatePage(idx)} title="Putar 90°">
-                  <RotateCw className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn onClick={() => duplicatePage(idx)} title="Duplikat">
-                  <CopyPlus className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn onClick={() => insertBlank(idx)} title="Sisip halaman kosong">
-                  <FilePlus2 className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn
-                  onClick={() => {
-                    setReplaceTarget(idx);
-                    setReplaceValue("");
+              {p.thumbnail && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPreviewPage(p); setPreviewZoom(1);
                   }}
-                  title="Ganti halaman"
+                  title="Lihat full preview"
+                  className="absolute inset-0 flex items-center justify-center bg-slate-900/0 opacity-0 transition group-hover:bg-slate-900/30 group-hover:opacity-100"
                 >
-                  <Repeat className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn onClick={() => deletePage(idx)} title="Hapus">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </IconBtn>
-              </div>
+                  <span className="rounded-full bg-white/95 p-2 shadow-lg">
+                    <Maximize2 className="h-4 w-4 text-slate-700" />
+                  </span>
+                </button>
+              )}
             </div>
             {replaceTarget === idx && (
               <div className="absolute inset-x-1 top-9 z-10 rounded-lg border border-indigo-200 bg-white p-2 shadow-xl">
@@ -342,27 +369,45 @@ export default function PagesView() {
           </div>
         ))}
       </div>
+
+      {previewPage && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/90 backdrop-blur-sm" onClick={() => setPreviewPage(null)}>
+          <div className="flex items-center justify-between border-b border-white/10 bg-slate-900 px-4 py-3">
+            <h3 className="text-sm font-semibold text-white">Preview — Halaman {state.pages.findIndex(p=>p.id===previewPage.id)+1}</h3>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-lg bg-white/10 px-1.5 py-1">
+                <button onClick={(e)=>{e.stopPropagation(); setPreviewZoom(z=>Math.max(0.5, +(z-0.15).toFixed(2)))}} className="rounded px-1.5 py-0.5 text-white hover:bg-white/20 text-sm">−</button>
+                <span className="min-w-[3.5rem] text-center text-xs font-semibold text-white">{Math.round(previewZoom*100)}%</span>
+                <button onClick={(e)=>{e.stopPropagation(); setPreviewZoom(z=>Math.min(3, +(z+0.15).toFixed(2)))}} className="rounded px-1.5 py-0.5 text-white hover:bg-white/20 text-sm">+</button>
+              </div>
+              <button onClick={()=>{ setPreviewZoom(1)}} className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/20">Reset</button>
+              <button onClick={() => setPreviewPage(null)} className="rounded-lg bg-white p-1.5 text-slate-700 hover:bg-slate-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <div
+            className="flex flex-1 items-center justify-center overflow-auto p-4"
+            onClick={e=>e.stopPropagation()}
+            onWheel={(e)=>{ e.preventDefault(); const d = e.deltaY < 0 ? 0.1 : -0.1; setPreviewZoom(z=> Math.min(3, Math.max(0.5, +(z+d).toFixed(2)))); }}
+          >
+            <img src={previewPage.thumbnail} alt="Preview" className="rounded-xl bg-white shadow-2xl object-contain transition-transform" style={{ transform: `rotate(${previewPage.rotation}deg) scale(${previewZoom})`, maxHeight: '80vh', maxWidth: '90vw' }} />
+          </div>
+          <p className="py-2 text-center text-xs text-white/60">Scroll untuk zoom · {Math.round(previewZoom*100)}%</p>
+        </div>
+      )}
     </div>
   );
 }
 
-function IconBtn({
-  children,
-  onClick,
-  title,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  title: string;
-}) {
+function MenuItem({ icon: Icon, label, onClick }: { icon: any; label: string; onClick: () => void }) {
   return (
     <button
-      title={title}
-      aria-label={title}
       onClick={onClick}
-      className="rounded-lg bg-white/95 p-1.5 text-slate-700 shadow-sm transition hover:bg-white hover:text-indigo-600"
+      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 transition hover:bg-slate-50"
     >
-      {children}
+      <Icon className="h-3.5 w-3.5 text-slate-500" />
+      {label}
     </button>
   );
 }

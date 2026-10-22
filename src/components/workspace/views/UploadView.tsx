@@ -75,7 +75,7 @@ export default function UploadView() {
         />
       </div>
 
-      {state.meta.status === "ready" && (
+      {state.meta.status === "ready" && state.pages.length > 0 && (
         <div className="mt-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
           <FileText className="h-7 w-7 shrink-0 text-emerald-600" />
           <div className="min-w-0 flex-1">

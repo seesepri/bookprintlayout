@@ -91,7 +91,7 @@ export async function analyzePdf(
     // yields. Thumbnails are additive UI sugar — nothing downstream needs them.
     const thumbCount = Math.min(numPages, MAX_THUMBNAIL_PAGES);
     for (let i = 1; i <= thumbCount; i++) {
-      const { dataUrl } = await renderPageThumbnail(handle, i, 220);
+      const { dataUrl } = await renderPageThumbnail(handle, i, 600, { format: "jpeg", quality: 0.92 });
       pages[i - 1] = { ...pages[i - 1], thumbnail: dataUrl };
       if (i % YIELD_EVERY === 0) {
         onProgress?.(i, numPages);
@@ -143,7 +143,7 @@ export async function rebuildThumbnails(bytes: Uint8Array, pages: PageInfo[]): P
       // A record written by an older build, or a source file that shrank, must
       // not take the whole resume down with it: skip the slot and keep the rest.
       if (sourcePage < 1 || sourcePage > handle.numPages) continue;
-      const { dataUrl } = await renderPageThumbnail(handle, sourcePage, 220);
+      const { dataUrl } = await renderPageThumbnail(handle, sourcePage, 600, { format: "jpeg", quality: 0.92 });
       next[i] = { ...page, thumbnail: dataUrl };
       if ((i + 1) % YIELD_EVERY === 0) await yieldToBrowser();
     }

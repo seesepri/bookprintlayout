@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Download, FileCheck2, Loader2, Printer } from "lucide-react";
+import { Download, Expand, ExternalLink, FileCheck2, Loader2, Printer } from "lucide-react";
 import { InfoTip } from "../../ui/InfoTip";
 import { useProject } from "../../../state/ProjectContext";
 import type { BooleanExportKey, ExportFormat, ExportSettings } from "../../../types";
@@ -7,6 +7,7 @@ import { buildImpositionPdf, bytesToBlob } from "../../../lib/pdfEngine";
 import { splitPdfBySignature, zipFiles } from "../../../lib/pdfSplit";
 import { EXPORT_SUFFIX, resolveExportOptions } from "../../../lib/exportOptions";
 import toast from "react-hot-toast";
+import FullPreviewModal from "../../ui/FullPreviewModal";
 
 const FORMATS: { key: ExportFormat; label: string; desc: string }[] = [
   { key: "print-ready", label: "Print Ready", desc: "Lembar + marks." },
@@ -26,6 +27,7 @@ function downloadBytes(bytes: Uint8Array, filename: string, type = "application/
 export default function ExportView() {
   const { state, dispatch, activeBookSize, activePaperSize } = useProject();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fullPreview, setFullPreview] = useState(false);
   // UI-only: how the per-signature result is packaged, not part of the project.
   const [zipPerSignature, setZipPerSignature] = useState(false);
 
@@ -235,7 +237,26 @@ export default function ExportView() {
 
           {previewUrl && state.generatedPdf ? (
             <div className="mt-4">
+              <div className="mb-2 flex items-center justify-end gap-1">
+                <button
+                  onClick={() => setFullPreview(true)}
+                  title="Fullscreen"
+                  className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 transition hover:bg-slate-50 hover:text-indigo-600"
+                >
+                  <Expand className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => window.open(previewUrl, "_blank", "noopener,noreferrer")}
+                  title="Buka di tab baru"
+                  className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 transition hover:bg-slate-50 hover:text-indigo-600"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
+              </div>
               <iframe src={previewUrl} className="h-64 w-full rounded-lg border border-slate-200" />
+              {fullPreview && (
+                <FullPreviewModal url={previewUrl} onClose={() => setFullPreview(false)} title="Ekspor — Pratinjau PDF" />
+              )}
               <button
                 onClick={download}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"

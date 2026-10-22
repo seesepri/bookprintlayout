@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./assets/fonts/plus-jakarta-sans.css";
 
 /* One theme only. Pinned so a dark-preferring OS cannot repaint form controls
    and scrollbars that the rest of the UI no longer styles. */
@@ -123,4 +124,113 @@ input, select, textarea {
     padding-top: 16px;
     padding-bottom: 16px;
   }
+}
+
+/* Landing page motion.
+ *
+ * Every one of these is opt-out at the source: the Landing checks
+ * `prefers-reduced-motion` and renders the final state directly, so nothing here
+ * needs a media query to stay accessible — but the query is included as a second
+ * net for anything that slips through, and so the browser can skip the work.
+ */
+@keyframes seebook-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 26px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes seebook-settle {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes seebook-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+/* Scroll reveal: hidden only until the observer flips the class. */
+.reveal-out {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+}
+
+.reveal-in {
+  animation: seebook-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Hero: the plate is drawn in CSS, and the proof card floating over it drifts
+   with the pointer. Variables are set from the handler in Landing. */
+.hero-stage {
+  perspective: 900px;
+}
+
+.hero-sheet {
+  /* `translate` and `transform` are separate properties: the float animation owns
+     `transform`, the pointer parallax owns `translate`. Sharing one property would
+     let the animation win and silently kill the parallax. */
+  translate: var(--shift-x, 0px) var(--shift-y, 0px);
+  transition: translate 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: seebook-float 5s ease-in-out infinite;
+  animation-delay: 900ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-out,
+  .reveal-in {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  .hero-sheet {
+    animation: none !important;
+    transform: none !important;
+    translate: none !important;
+    transition: none !important;
+  }
+}
+
+/* Shared by the hero H1 and the section H2, so both headings always match. */
+.display-title {
+  font-family:
+    "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Display",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-optical-sizing: auto;
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Display sizes need tighter tracking than body text; the wider face makes the
+   default spacing look loose. `text-wrap: balance` keeps the two lines even. */
+.hero-title {
+  letter-spacing: -0.032em;
+  line-height: 1.06;
+}
+
+@media (min-width: 640px) {
+  .hero-title { letter-spacing: -0.038em; line-height: 1.04; }
+}
+
+.section-title {
+  letter-spacing: -0.022em;
+  line-height: 1.15;
 }

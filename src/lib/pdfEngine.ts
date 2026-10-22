@@ -482,10 +482,9 @@ export async function buildImpositionPdf(params: BuildImpositionParams): Promise
       drawPlacement(page, placement, resolvePage(pageNumbers[index] ?? null), outputMarks, folio);
     });
 
+    // Row-boundary marks carry `dy: 0`: `drawCropMarks` already draws their
+    // horizontal tick in each margin and skips the vertical arm.
     if (outputMarks.showCropMarks) drawCropMarks(page, geometry.cropMarks, mmToPt(CROP_GAP_MM), mmToPt(CROP_LENGTH_MM));
-    // A denser sheet carries marks only: the tick pair on each internal row
-    // boundary marks the cut, the block edges mark the fold. No rule is drawn
-    // across the artwork.
     if (outputMarks.showRegistrationMarks) drawRegistrationMarks(page, sheetWidthPt, sheetHeightPt, regInsetPt);
     if (outputMarks.showCenterLine) {
       page.drawLine({

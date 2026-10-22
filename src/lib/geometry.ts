@@ -287,15 +287,27 @@ function buildGridGeometry(
 
   // Outer corners of the whole block, plus a horizontal-only tick on each
   // internal row boundary so a guillotine cut has something to line up with.
+  // `dy` points AWAY from the block, the same convention the classic spread uses
+  // and the one both consumers implement: `drawCropMarks` measures the room to
+  // the sheet edge from the sign, and the preview draws upward for dy > 0. These
+  // four marks used to carry the opposite sign, so every vertical arm ran 5 mm
+  // into the artwork instead of out into the margin — on a block that filled the
+  // sheet, the only marks that survived were the four lines printed inside the
+  // trim. With the sign corrected, `fitMarkRun` skips the arm when there is no
+  // room rather than drawing it inwards.
   const cropMarks: CropMarkGeometry[] = [
-    { x: originX, y: originY + blockH, dx: -1, dy: -1 },
-    { x: originX + blockW, y: originY + blockH, dx: 1, dy: -1 },
-    { x: originX, y: originY, dx: -1, dy: 1 },
-    { x: originX + blockW, y: originY, dx: 1, dy: 1 },
+    { x: originX, y: originY + blockH, dx: -1, dy: 1 },
+    { x: originX + blockW, y: originY + blockH, dx: 1, dy: 1 },
+    { x: originX, y: originY, dx: -1, dy: -1 },
+    { x: originX + blockW, y: originY, dx: 1, dy: -1 },
   ];
-  // A denser sheet is indexed by its marks alone: the tick pair on each internal
-  // row boundary is the cut, and the middle of the block is the fold. Drawing a
-  // rule across the artwork only proves the grid to the printer's eye.
+  /*
+   * Each internal row boundary gets ONE short tick in the left margin and one in
+   * the right margin — never a rule across the block, which would print over the
+   * artwork. `dy: 0` means "horizontal only": there is no trim edge to run toward
+   * on this axis, so both `drawCropMarks` and the preview must skip the vertical
+   * arm here.
+   */
   for (let r = 1; r < rows; r++) {
     const y = originY + r * bookSize.height;
     cropMarks.push({ x: originX, y, dx: -1, dy: 0 }, { x: originX + blockW, y, dx: 1, dy: 0 });
@@ -318,6 +330,24 @@ function buildGridGeometry(
 
 /** Below this a "mark" is a stub nobody can trim against: skip it instead. */
 export const MIN_MARK_SPAN_PT = 4;
+
+/** Full mark, a shortened one, or nothing at all — in the room that is available. */
+export type MarkRoom = "full" | "short" | "none";
+
+/**
+ * What a crop mark can do with `roomMm` of clear space between the trim edge and
+ * the edge of the sheet. Mirrors `fitMarkRun` exactly, so a warning built from it
+ * describes what the renderer will really do instead of guessing.
+ */
+export function markRoomFor(roomMm: number): MarkRoom {
+  const fullPt = mmToPt(CROP_GAP_MM + CROP_LENGTH_MM);
+  const run = fitMarkRun(Math.max(0, roomMm) * (72 / 25.4), mmToPt(CROP_GAP_MM), mmToPt(CROP_LENGTH_MM));
+  if (!run) return "none";
+  // `fitMarkRun` always leaves 1 pt of slack, so an exact fit still comes back a
+  // hair short. Only call it "short" when the mark loses a tenth of its length:
+  // a warning about 0.35 mm would be noise nobody acts on.
+  return run.spanPt < fullPt * 0.9 ? "short" : "full";
+}
 
 /**
  * How far a mark may reach, given the room between the trim edge and the edge
@@ -422,14 +452,35 @@ export function validateImposition(params: {
    * the sheet cannot show instead of refusing the layout.
    */
   if (multiUp && marks.showCropMarks) {
-    const withMarks = gridSheetSize(bookSize, grid, {
-      bleedMm: Math.max(0, bleedMm),
-      gutterMm: binding === "perfect-binding" ? Math.max(0, gutterMm) : 0,
-      marksRoomMm: CROP_GAP_MM + CROP_LENGTH_MM,
-    });
-    if (!fits(withMarks, paper)) {
+    /*
+     * Report the outcome per axis, not "marks will be skipped".
+     *
+     * The old message claimed every mark would be dropped whenever the block plus
+     * mark room did not fit the sheet. That was never true — the marks were still
+     * drawn, only inwards — so it promised a clean sheet that the export did not
+     * deliver. Now that the arms point outward, the honest statement is which
+     * side has no room to draw on, and that the sheet edge itself is the cut line
+     * there.
+     */
+    const gridGutter = binding === "perfect-binding" ? Math.max(0, gutterMm) : 0;
+    const blockW = bookSize.width * Math.max(1, grid.cols) + gridGutter * (Math.max(1, grid.cols) - 1);
+    const blockH = bookSize.height * Math.max(1, grid.rows);
+    const sideRoom = Math.max(0, (paper.width - blockW) / 2);
+    const topRoom = Math.max(0, (paper.height - blockH) / 2);
+    const sides = markRoomFor(sideRoom);
+    const ends = markRoomFor(topRoom);
+    const needMm = (CROP_GAP_MM + CROP_LENGTH_MM).toFixed(1);
+
+    if (sides === "none" || ends === "none") {
+      const missing: string[] = [];
+      if (sides === "none") missing.push(`kiri-kanan ${sideRoom.toFixed(1)} mm`);
+      if (ends === "none") missing.push(`atas-bawah ${topRoom.toFixed(1)} mm`);
       warnings.push(
-        `Crop marks tidak punya ruang pada grid ${grid.cols}×${grid.rows} di kertas ini dan akan dilewati. ${withMarks.width.toFixed(1)} × ${withMarks.height.toFixed(1)} mm dibutuhkan untuk menampilkannya.`
+        `Crop marks tidak dapat ditampilkan pada grid ${grid.cols}×${grid.rows}: ruang di luar blok cetak hanya ${missing.join(" dan ")} (butuh ${needMm} mm). Blok sudah menyentuh tepi kertas, jadi tepi kertas itu sendiri yang menjadi acuan potong pada sisi tersebut.`
+      );
+    } else if (sides === "short" || ends === "short") {
+      warnings.push(
+        `Crop marks diperpendek agar tetap di dalam kertas: ruang di luar blok ${Math.min(sideRoom, topRoom).toFixed(1)} mm, panjang penuh butuh ${needMm} mm.`
       );
     }
   }

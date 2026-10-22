@@ -109,6 +109,8 @@ describe("2x2 sheet geometry", () => {
     expect(g.cropMarks).toHaveLength(6);
     expect(g.cropMarks.filter((m) => m.dy === 0)).toHaveLength(2);
     expect(g.cropMarks.filter((m) => m.dy === 0).every((m) => m.y === 210)).toBe(true);
+    // Horizontal ticks in the side margins only — no vertical arm into the artwork.
+    expect(g.cropMarks.filter((m) => m.dy === 0).every((m) => m.dy === 0)).toBe(true);
   });
 
   it("adds the gutter between the columns, never between the rows", () => {
@@ -143,7 +145,7 @@ describe("2x2 sheet geometry", () => {
     expect(tight.errors.join(" ")).toMatch(/tidak muat/);
   });
 
-  it("accepts the 4-up sheet with crop marks on, warning that they are skipped", () => {
+  it("accepts the 4-up sheet with crop marks on, warning that the sheet edge is the cut line", () => {
     const plan = planImposition(16, "perfect-binding", 16, "left", { slotsPerSide: 4 });
     const v = validateImposition({
       pages: pages(16),
@@ -162,7 +164,14 @@ describe("2x2 sheet geometry", () => {
     });
     expect(v.errors).toEqual([]);
     expect(v.valid).toBe(true);
-    expect(v.warnings.join(" ")).toMatch(/Crop marks tidak punya ruang/);
+    // The warning used to say the marks "akan dilewati" (would be skipped) while
+    // four vertical arms were in fact printed inside the artwork. It now reports
+    // the real outcome: the block is flush with the sheet, so the sheet edge is
+    // what the guillotine lines up on.
+    const warning = v.warnings.join(" ");
+    expect(warning).toMatch(/Crop marks tidak dapat ditampilkan/);
+    expect(warning).toMatch(/tepi kertas/);
+    expect(warning).not.toMatch(/akan dilewati/);
   });
 
   it("still demands mark room for a spread — the pair rule is untouched", () => {

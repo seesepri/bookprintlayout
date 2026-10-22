@@ -664,10 +664,16 @@ export default function PreviewCanvas() {
                                 className="absolute h-px bg-slate-700"
                                 style={{ left: mark.dx > 0 ? gap : -(gap + length), top: 0, width: length }}
                               />
-                              <div
-                                className="absolute w-px bg-slate-700"
-                                style={{ left: 0, top: mark.dy > 0 ? -(gap + length) : gap, height: length }}
-                              />
+                              {/* `dy === 0` is a row-boundary cut: horizontal tick
+                                  only. Without this guard the expression below fell
+                                  through to `gap` and drew a vertical tick 5 mm into
+                                  the artwork, which the exporter never drew. */}
+                              {mark.dy !== 0 && (
+                                <div
+                                  className="absolute w-px bg-slate-700"
+                                  style={{ left: 0, top: mark.dy > 0 ? -(gap + length) : gap, height: length }}
+                                />
+                              )}
                             </div>
                           );
                         })}

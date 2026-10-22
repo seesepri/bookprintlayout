@@ -27,8 +27,34 @@ export default function PagesView() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<number | null>(null);
   const [replaceValue, setReplaceValue] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   const updatePages = (pages: PageInfo[]) => dispatch({ type: "SET_PAGES", pages });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === state.pages.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(state.pages.map((p) => p.id)));
+  };
+
+  const deleteSelected = () => {
+    const count = selectedIds.size;
+    if (!count) return;
+    const remaining = state.pages.filter((p) => !selectedIds.has(p.id));
+    updatePages(remaining);
+    setSelectedIds(new Set());
+    setConfirmBulkDelete(false);
+    toast.success(`${count} halaman dihapus.`);
+  };
 
   const rotatePage = (idx: number) => {
     const pages = [...state.pages];
@@ -151,9 +177,23 @@ export default function PagesView() {
     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Halaman</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900">Halaman</h2>
+            {state.pages.length > 1 && (
+              <label className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === state.pages.length && state.pages.length > 0}
+                  onChange={toggleSelectAll}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                Pilih semua
+              </label>
+            )}
+          </div>
           <p className="text-[13px] text-slate-500">
             {state.pages.length} halaman · geser kartu untuk mengurutkan
+            {selectedIds.size > 0 && <span className="ml-2 font-semibold text-indigo-600">· {selectedIds.size} dipilih</span>}
           </p>
         </div>
         <div className="flex gap-2">
@@ -171,8 +211,41 @@ export default function PagesView() {
           >
             <FilePlus2 className="h-4 w-4" /> Halaman Kosong
           </button>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={() => setConfirmBulkDelete(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-[13px] font-semibold text-red-700 transition hover:bg-red-100"
+            >
+              <Trash2 className="h-4 w-4" /> Hapus {selectedIds.size} Halaman
+            </button>
+          )}
         </div>
       </div>
+
+      {confirmBulkDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <h3 className="text-sm font-bold text-slate-900">Hapus halaman terpilih?</h3>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500">
+              {selectedIds.size} halaman akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setConfirmBulkDelete(false)}
+                className="flex-1 rounded-lg border border-slate-300 bg-white py-2 text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={deleteSelected}
+                className="flex-1 rounded-lg bg-red-600 py-2 text-[13px] font-semibold text-white hover:bg-red-700"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
         {state.pages.map((p, idx) => (
@@ -185,10 +258,20 @@ export default function PagesView() {
             // Without this, a cancelled drag leaves `dragIndex` set and the next
             // drop reorders from the stale source.
             onDragEnd={() => setDragIndex(null)}
-            className="group relative rounded-xl border border-slate-200 bg-white p-2 transition hover:border-indigo-300 hover:shadow-md"
+            className={`group relative rounded-xl border bg-white p-2 transition hover:shadow-md ${selectedIds.has(p.id) ? "border-indigo-400 bg-indigo-50/50" : "border-slate-200 hover:border-indigo-300"}`}
           >
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="cursor-grab text-[11px] font-bold text-slate-400">#{idx + 1}</span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(p.id)}
+                  onChange={() => toggleSelect(p.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  title="Pilih halaman ini"
+                />
+                <span className="cursor-grab text-[11px] font-bold text-slate-400">#{idx + 1}</span>
+              </div>
               {p.isBlank && (
                 <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-400">
                   Kosong

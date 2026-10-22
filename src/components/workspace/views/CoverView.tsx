@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BookImage, Download, Info, Loader2, UploadCloud } from "lucide-react";
+import { AlertTriangle, BookImage, Download, Expand, ExternalLink, Info, Loader2, UploadCloud } from "lucide-react";
 import { useProject } from "../../../state/ProjectContext";
 import { Checkbox, NumberBox } from "../panels/PanelShell";
 import { buildCoverPdf, fileToBytes, bytesToBlob } from "../../../lib/pdfEngine";
@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import type { CoverSettings } from "../../../types";
 import type { CoverNote } from "../../../lib/pdfEngine";
 import { InfoTip } from "../../ui/InfoTip";
+import FullPreviewModal from "../../ui/FullPreviewModal";
 
 type CoverFileKey = "frontFile" | "backFile" | "spineFile";
 
@@ -15,6 +16,7 @@ export default function CoverView() {
   const { state, dispatch, activeBookSize } = useProject();
   const [busy, setBusy] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fullPreview, setFullPreview] = useState(false);
   // What the engine had to assume about the supplied artwork (extra pages, no
   // bleed). Kept next to the preview so it is still readable after the toast.
   const [notes, setNotes] = useState<CoverNote[]>([]);
@@ -205,7 +207,25 @@ export default function CoverView() {
         <div className="rounded-xl border border-slate-200 bg-white p-5">
           {previewUrl ? (
             <>
-              <h3 className="mb-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Pratinjau</h3>
+              <div className="mb-3.5 flex items-center justify-between">
+                <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Pratinjau</h3>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setFullPreview(true)}
+                    title="Fullscreen"
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 transition hover:bg-slate-50 hover:text-indigo-600"
+                  >
+                    <Expand className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => window.open(previewUrl!, "_blank", "noopener,noreferrer")}
+                    title="Buka di tab baru"
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 transition hover:bg-slate-50 hover:text-indigo-600"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
               <div
                 className="mx-auto w-full max-w-[760px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
                 style={{ aspectRatio: previewAspectRatio, maxHeight: "min(58vh, 520px)" }}
@@ -216,6 +236,9 @@ export default function CoverView() {
                   className="block h-full w-full border-0"
                 />
               </div>
+              {fullPreview && (
+                <FullPreviewModal url={previewUrl!} onClose={() => setFullPreview(false)} title="Cover — Pratinjau PDF" />
+              )}
               <button
                 onClick={download}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"

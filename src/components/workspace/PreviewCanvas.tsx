@@ -19,12 +19,35 @@ import {
   hiResWidthFor,
   shouldRenderHiRes,
   thumbnailFormatFor,
+  pruneToVisible,
+  clampZoom,
+  ZOOM_MIN,
+  ZOOM_MAX,
 } from "../../lib/previewHelpers";
 import { getSharedRenderDoc, renderPageThumbnail } from "../../lib/pdfRender";
 import Ruler from "./Ruler";
 import { cn } from "../../utils/cn";
 
 const BASE_PX_PER_MM = 2.6;
+
+/**
+ * `devicePixelRatio` as state, so a window dragged to a monitor with a different
+ * density re-renders instead of keeping the old snapping until something else
+ * happens to move. `matchMedia` on the *current* ratio is the only reliable way
+ * to hear about the change; it is re-armed after every fire because the query
+ * string itself is what encodes the old value.
+ */
+function useDevicePixelRatio(): number {
+  const read = () => (typeof window === "undefined" ? 1 : window.devicePixelRatio || 1);
+  const [dpr, setDpr] = useState(read);
+  useEffect(() => {
+    const query = window.matchMedia(`(resolution: ${dpr}dppx)`);
+    const onChange = () => setDpr(read());
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, [dpr]);
+  return dpr;
+}
 
 export default function PreviewCanvas() {
   const { state, dispatch, activeBookSize, activePaperSize } = useProject();
@@ -80,19 +103,35 @@ export default function PreviewCanvas() {
    * resamples the page raster even when the raster is exactly 1:1, and that
    * resampling is what reads as "blurry" on an otherwise sharp render.
    */
-  const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+  const dpr = useDevicePixelRatio();
   const snap = (px: number) => Math.round(px * dpr) / dpr;
   const sheetWpx = snap(paper.width * scale);
   const sheetHpx = snap(paper.height * scale);
 
   const isFolded = state.binding !== "perfect-binding";
 
-  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const direction = e.deltaY > 0 ? -1 : 1;
-    const nextZoom = Math.min(3, Math.max(0.2, state.zoom + direction * 0.1));
-    dispatch({ type: "SET_ZOOM", zoom: Number(nextZoom.toFixed(2)) });
-  };
+  /**
+   * Wheel zoom needs a *non-passive* listener.
+   *
+   * React attaches `wheel` passively at the root, so `preventDefault()` inside an
+   * `onWheel` prop is ignored and logs "Unable to preventDefault inside passive
+   * event listener" — the zoom changed, but the page behind it scrolled too.
+   * The only way to actually cancel the scroll is a native listener registered
+   * with `{ passive: false }`.
+   */
+  const dragAreaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = dragAreaRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      // Relative action: the reducer owns the arithmetic, so a burst of wheel
+      // events compounds instead of every event starting from the stale closure.
+      dispatch({ type: "NUDGE_ZOOM", direction: e.deltaY > 0 ? -1 : 1, step: 0.1 });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [state.pages.length, state.viewMode]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     dragging.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
@@ -113,15 +152,32 @@ export default function PreviewCanvas() {
     const availH = el.clientHeight - 80;
     const targetW = paper.width * BASE_PX_PER_MM;
     const targetH = paper.height * BASE_PX_PER_MM;
-    const z = Math.min(availW / targetW, availH / targetH, 2.5);
-    dispatch({ type: "SET_ZOOM", zoom: Math.max(0.2, Number(z.toFixed(2))) });
+    const z = Math.min(availW / targetW, availH / targetH);
+    dispatch({ type: "SET_ZOOM", zoom: clampZoom(z) });
   };
 
-  const toggleFullscreen = () => {
+  /**
+   * Fullscreen can legitimately fail — a browser policy, or a page inside an
+   * iframe that was not granted the permission. `requestFullscreen` returns a
+   * promise, and leaving it unhandled threw an unhandled rejection into the
+   * console for a button press the user could not do anything about.
+   */
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  const toggleFullscreen = async () => {
     const el = containerRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) el.requestFullscreen?.();
-    else document.exitFullscreen?.();
+    try {
+      if (!document.fullscreenElement) await el.requestFullscreen?.();
+      else await document.exitFullscreen?.();
+    } catch {
+      /* Denied by policy: stay in the normal view, nothing else to undo. */
+    }
   };
 
   const geometry = useMemo(() => {
@@ -183,7 +239,7 @@ export default function PreviewCanvas() {
         scale,
         typeof window === "undefined" ? 1 : window.devicePixelRatio || 1
       ),
-    [sidePlacements, scale]
+    [sidePlacements, scale, dpr]
   );
   const sharpTargets = useMemo(
     () =>
@@ -196,6 +252,19 @@ export default function PreviewCanvas() {
 
   // A new file means new bytes behind the same page numbers: drop the cache.
   useEffect(() => setSharp({}), [state.sourceBytes]);
+
+  /**
+   * Keep the cache to what is on screen.
+   *
+   * Every page viewed used to keep its raster forever, so paging through a long
+   * book accumulated one data URL per page — a few hundred of them on a 400-page
+   * document. Re-rendering a page on the way back costs one raster; holding every
+   * page costs memory for the whole session.
+   */
+  useEffect(() => {
+    const visible = sidePlacements.map((p) => p.pageNumber).filter((n): n is number => n !== null);
+    setSharp((prev) => pruneToVisible(prev, visible));
+  }, [sidePlacements]);
 
   useEffect(() => {
     const bytes = state.sourceBytes;
@@ -307,6 +376,8 @@ export default function PreviewCanvas() {
             <button
               key={m.key}
               onClick={() => dispatch({ type: "SET_VIEW_MODE", mode: m.key })}
+              aria-label={`Tampilan ${m.label}`}
+              aria-pressed={state.viewMode === m.key}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition",
                 state.viewMode === m.key
@@ -324,6 +395,7 @@ export default function PreviewCanvas() {
             <button
               disabled={sheetIndex === 0}
               onClick={() => setSheetIndex((i) => Math.max(0, i - 1))}
+              aria-label="Lembar sebelumnya"
               className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -334,6 +406,7 @@ export default function PreviewCanvas() {
             <button
               disabled={sheetIndex >= plan.sheets.length - 1}
               onClick={() => setSheetIndex((i) => Math.min(plan.sheets.length - 1, i + 1))}
+              aria-label="Lembar berikutnya"
               className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" />
@@ -342,6 +415,7 @@ export default function PreviewCanvas() {
               <div className="ml-1 flex overflow-hidden rounded-lg border border-slate-200">
                 <button
                   onClick={() => setSide("front")}
+                  aria-pressed={side === "front"}
                   className={cn(
                     "px-2 py-1 text-[11px] font-semibold",
                     side === "front" ? "bg-slate-900 text-white" : "text-slate-500"
@@ -351,6 +425,7 @@ export default function PreviewCanvas() {
                 </button>
                 <button
                   onClick={() => setSide("back")}
+                  aria-pressed={side === "back"}
                   className={cn(
                     "px-2 py-1 text-[11px] font-semibold",
                     side === "back" ? "bg-slate-900 text-white" : "text-slate-500"
@@ -365,8 +440,10 @@ export default function PreviewCanvas() {
 
         <div className="ml-auto flex items-center gap-1">
           <button
-            onClick={() => dispatch({ type: "SET_ZOOM", zoom: Math.max(0.2, Number((state.zoom - 0.15).toFixed(2))) })}
-            className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100"
+            onClick={() => dispatch({ type: "NUDGE_ZOOM", direction: -1 })}
+            aria-label="Perkecil tampilan"
+            className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100 disabled:opacity-30"
+            disabled={state.zoom <= ZOOM_MIN}
           >
             <ZoomOut className="h-4 w-4" />
           </button>
@@ -374,8 +451,10 @@ export default function PreviewCanvas() {
             {Math.round(state.zoom * 100)}%
           </span>
           <button
-            onClick={() => dispatch({ type: "SET_ZOOM", zoom: Math.min(4, Number((state.zoom + 0.15).toFixed(2))) })}
-            className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100"
+            onClick={() => dispatch({ type: "NUDGE_ZOOM", direction: 1 })}
+            aria-label="Perbesar tampilan"
+            className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100 disabled:opacity-30"
+            disabled={state.zoom >= ZOOM_MAX}
           >
             <ZoomIn className="h-4 w-4" />
           </button>
@@ -387,9 +466,12 @@ export default function PreviewCanvas() {
           </button>
           <button
             onClick={toggleFullscreen}
+            aria-label={isFullscreen ? "Keluar dari layar penuh" : "Layar penuh"}
+            aria-pressed={isFullscreen}
             className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-100"
           >
-            <Expand className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Layar penuh</span>
+            <Expand className="h-3.5 w-3.5" />{" "}
+            <span className="hidden sm:inline">{isFullscreen ? "Keluar" : "Layar penuh"}</span>
           </button>
         </div>
       </div>
@@ -412,6 +494,10 @@ export default function PreviewCanvas() {
                     dispatch({ type: "SET_VIEW_MODE", mode: "spread" });
                   }}
                   className="group rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-indigo-300 hover:shadow-md"
+                  // Skip layout and paint for thumbnails scrolled out of view: the
+                  // grid renders every sheet, and a long book otherwise pays for
+                  // all of them on first paint.
+                  style={{ contentVisibility: "auto", containIntrinsicSize: "auto 260px" }}
                 >
                   <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-slate-400">
                     <span>Lembar {idx + 1}</span>
@@ -457,8 +543,8 @@ export default function PreviewCanvas() {
                 </div>
               </div>
               <div
+                ref={dragAreaRef}
                 className="relative flex-1 cursor-grab overflow-hidden active:cursor-grabbing"
-                onWheel={onWheel}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
@@ -467,6 +553,9 @@ export default function PreviewCanvas() {
                   backgroundImage:
                     "linear-gradient(to right, rgba(148,163,184,0.15) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.15) 1px, transparent 1px)",
                   backgroundSize: `${scale * 10}px ${scale * 10}px`,
+                  // Without this a finger drag is read as a page scroll, the browser
+                  // fires pointercancel, and panning simply stops on touch screens.
+                  touchAction: "none",
                 }}
               >
                 <div

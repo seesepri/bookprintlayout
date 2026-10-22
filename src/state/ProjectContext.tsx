@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
 import { normalizePagesPerSide, type PagesPerSideSetting } from "../lib/nup";
+import { clampZoom, zoomStep } from "../lib/previewHelpers";
 import { saveProject } from "../lib/persistence";
 import {
   BindingDirection,
@@ -82,6 +83,8 @@ export type Action =
   | { type: "SET_EXPORT"; settings: Partial<ExportSettings> }
   | { type: "SET_VIEW_MODE"; mode: ViewMode }
   | { type: "SET_ZOOM"; zoom: number }
+  /** Relative zoom: three wheel events in one frame each add their own step. */
+  | { type: "NUDGE_ZOOM"; direction: 1 | -1; step?: number }
   | { type: "SET_GENERATED"; bytes: Uint8Array | null }
   | { type: "SET_GENERATED_COVER"; bytes: Uint8Array | null }
   | { type: "SET_GENERATING"; value: boolean }
@@ -206,7 +209,12 @@ function reducer(state: ProjectState, action: Action): ProjectState {
     case "SET_VIEW_MODE":
       return { ...state, viewMode: action.mode };
     case "SET_ZOOM":
-      return { ...state, zoom: action.zoom };
+      return { ...state, zoom: clampZoom(action.zoom) };
+    case "NUDGE_ZOOM":
+      // Computed from the state the reducer is holding, not from a value captured
+      // in the handler's closure: a burst of wheel events now compounds instead of
+      // all starting from the same stale number.
+      return { ...state, zoom: zoomStep(state.zoom, action.direction, action.step) };
     case "SET_GENERATED":
       return { ...state, generatedPdf: action.bytes };
     case "SET_GENERATED_COVER":
@@ -241,6 +249,7 @@ const ProjectDispatchContext = createContext<React.Dispatch<Action> | null>(null
 /** Never pushed to history: presentation-only or machine-output changes. */
 const NON_UNDOABLE = new Set<Action["type"]>([
   "SET_ZOOM",
+  "NUDGE_ZOOM",
   "SET_GENERATING",
   "SET_GENERATED",
   "SET_GENERATED_COVER",

@@ -130,6 +130,35 @@ export function resolveSheet(input: SheetInput): SheetResolution {
  * thumbnail the preview is supposed to replace. Supersampling and letting the
  * browser downscale is what makes text read as sharp on a plain display.
  */
+/**
+ * The one zoom range for the whole preview.
+ *
+ * Before this existed the range was written out four times and the four copies
+ * disagreed: the wheel stopped at 3, the plus button reached 4, and `fitToScreen`
+ * capped itself at 2.5. Zooming to 400% with the button and then scrolling once
+ * dropped the view to 290%. Every entry point goes through `clampZoom` now, and
+ * the reducer clamps as well so a future caller cannot slip past it.
+ */
+export const ZOOM_MIN = 0.2;
+export const ZOOM_MAX = 4;
+/** One wheel notch or one click of the +/- buttons. */
+export const ZOOM_STEP = 0.15;
+const ZOOM_WHEEL_STEP = 0.1;
+
+/** Rounds to 2 decimals so 0.1 + 0.2 style drift never shows up in the toolbar. */
+export function clampZoom(zoom: number): number {
+  if (!Number.isFinite(zoom)) return 1;
+  return Number(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom)).toFixed(2));
+}
+
+export function zoomStep(current: number, direction: 1 | -1, step = ZOOM_STEP): number {
+  return clampZoom(current + direction * step);
+}
+
+export function zoomFromWheel(current: number, deltaY: number): number {
+  return zoomStep(current, deltaY > 0 ? -1 : 1, ZOOM_WHEEL_STEP);
+}
+
 export function hiResWidthFor(
   widthMm: number,
   pxPerMm: number,
@@ -163,6 +192,28 @@ export function shouldRenderHiRes(cachedWidth: number | undefined, wantedWidth: 
   if (wantedWidth <= 0) return false;
   if (!cachedWidth) return true;
   return wantedWidth > cachedWidth * 1.25;
+}
+
+/**
+ * Drops cached rasters for pages that left the screen.
+ *
+ * Without this the cache only ever grew: one data URL per page ever viewed, kept
+ * until the source file changed. On a 400-page book that is hundreds of images
+ * held for a session nobody can see. The cost of pruning is one re-render when the
+ * user pages back — cheap next to unbounded memory.
+ *
+ * Returns the *same object* when nothing needs dropping, so the caller can skip a
+ * re-render entirely.
+ */
+export function pruneToVisible<T>(cache: Record<number, T>, visible: Iterable<number>): Record<number, T> {
+  const keep = new Set(visible);
+  const keys = Object.keys(cache);
+  if (keys.every((key) => keep.has(Number(key)))) return cache;
+  const next: Record<number, T> = {};
+  for (const key of keys) {
+    if (keep.has(Number(key))) next[Number(key)] = cache[Number(key)];
+  }
+  return next;
 }
 
 export function getPageThumb(pages: PageInfo[], pageNumber: number | null): PageInfo | null {
